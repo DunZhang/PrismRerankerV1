@@ -1,0 +1,61 @@
+model:
+  path: "/mnt/d/PublicModels/Qwen3-Reranker-0.6B"
+  max_seq_length: 2048
+  dtype: "bfloat16"  # bfloat16 | float16 | float32 | null
+  load_in_4bit: false
+  attn_implementation: "flash_attention_2"  # null 时走 transformers 默认实现
+  gradient_checkpointing: true
+
+lora:
+  enabled: true  # false 时走全参微调
+  r: 16
+  alpha: 16
+  dropout: 0.0
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  use_rslora: false
+
+data:
+  train_file: "/mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_train.jsonl"
+  dev_file: "/mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_dev.jsonl"
+  train_samples: 10000  # null 表示全量，设为整数则随机采样 N 条
+  eval_samples: 1000  # null 表示 dev 全量评估
+  num_workers: 2
+  pin_memory: true
+
+training:
+  num_epochs: 1
+  learning_rate: 1.0e-5
+  weight_decay: 0.01
+  warmup_steps: 100
+  lr_scheduler: "cosine"  # cosine | linear
+  grad_accum_steps: 4
+  max_grad_norm: 1.0  # 0 表示不做梯度裁剪
+  seed: 42
+
+loss:
+  alpha_rank: 1.0
+  beta_list: 1.0
+  gamma_point: 0.5
+  temperature: 2.0
+  hard_neg_scale: 5.0
+
+evaluation:
+  interval_samples: 1000  # 按全局 seen samples 触发 dev MRR
+
+output:
+  dir: "./train/test_output_on_rtx4080"
+  run_name: "qwen3-reranker-0.6b-distill"
+  save_every_eval: true  # 每次评估都保存 checkpoint 到 samples-{N}/
+  save_last_checkpoint: false  # 训练结束后额外保存 last/
+
+logging:
+  wandb_project: "prism-reranker-v1"
+  wandb_mode: "offline"  # offline | online | disabled
+  log_interval_steps: 1
