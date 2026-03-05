@@ -2357,7 +2357,7 @@ requires-dist = [
     { name = "torchaudio", index = "https://download.pytorch.org/whl/cu124" },
     { name = "torchvision", index = "https://download.pytorch.org/whl/cu124" },
     { name = "tqdm", specifier = ">=4.67.3" },
-    { name = "transformers", specifier = ">=4.52.0" },
+    { name = "transformers", specifier = ">=4.52.0,<5.0" },
     { name = "vllm", specifier = ">=0.8.5.post1" },
     { name = "voyageai", specifier = ">=0.3.7" },
     { name = "wandb", specifier = ">=0.25.0" },

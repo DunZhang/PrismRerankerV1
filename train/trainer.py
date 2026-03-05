@@ -167,19 +167,34 @@ def compute_rank_loss(
     student_z: torch.Tensor,
     teacher_scores: torch.Tensor,
     hard_neg_scale: float,
+    num_positives: int,
 ) -> torch.Tensor:
-    positive_scores = teacher_scores[:, :1]
-    negative_scores = teacher_scores[:, 1:]
-    margins = (positive_scores - negative_scores).clamp(min=0)
-    difficulty = 1.0 / (1.0 + margins * hard_neg_scale)
-    negative_weights = F.softmax(difficulty, dim=-1)
+    """Rank loss: for each positive, cross-entropy against all negatives.
 
-    positive_logits = student_z[:, :1]
-    negative_logits = student_z[:, 1:] + torch.log(negative_weights + 1e-8)
-    weighted_logits = torch.cat([positive_logits, negative_logits], dim=-1)
+    When ``num_positives == 1`` this is mathematically equivalent to the
+    original single-positive implementation.
+    """
+    pos_logits = student_z[:, :num_positives]
+    neg_logits = student_z[:, num_positives:]
+    pos_teacher = teacher_scores[:, :num_positives]
+    neg_teacher = teacher_scores[:, num_positives:]
 
-    target = torch.zeros(student_z.size(0), dtype=torch.long, device=student_z.device)
-    return F.cross_entropy(weighted_logits, target)
+    batch_size = student_z.size(0)
+    target = torch.zeros(batch_size, dtype=torch.long, device=student_z.device)
+
+    total_loss = torch.tensor(0.0, device=student_z.device)
+    for i in range(num_positives):
+        single_pos_teacher = pos_teacher[:, i : i + 1]
+        margins = (single_pos_teacher - neg_teacher).clamp(min=0)
+        difficulty = 1.0 / (1.0 + margins * hard_neg_scale)
+        neg_weights = F.softmax(difficulty, dim=-1)
+
+        single_pos_logit = pos_logits[:, i : i + 1]
+        weighted_neg = neg_logits + torch.log(neg_weights + 1e-8)
+        combined = torch.cat([single_pos_logit, weighted_neg], dim=-1)
+        total_loss = total_loss + F.cross_entropy(combined, target)
+
+    return total_loss / num_positives
 
 
 def compute_list_loss(
@@ -207,8 +222,11 @@ def compute_losses(
     student_z: torch.Tensor,
     teacher_scores: torch.Tensor,
     cfg: TrainConfig,
+    num_positives: int,
 ) -> LossBreakdown:
-    loss_rank = compute_rank_loss(student_z, teacher_scores, cfg.loss.hard_neg_scale)
+    loss_rank = compute_rank_loss(
+        student_z, teacher_scores, cfg.loss.hard_neg_scale, num_positives
+    )
     loss_list = compute_list_loss(student_z, teacher_scores, cfg.loss.temperature)
     loss_point = compute_point_loss(student_z, teacher_scores)
     loss_total = (
@@ -225,7 +243,12 @@ def compute_losses(
 
 
 @torch.no_grad()
-def evaluate(model: Any, dev_loader: DataLoader, accelerator: Accelerator) -> float:
+def evaluate(
+    model: Any,
+    dev_loader: DataLoader,
+    accelerator: Accelerator,
+    micro_batch_size: int = 2,
+) -> float:
     model.eval()
     reciprocal_ranks: list[float] = []
 
@@ -235,14 +258,24 @@ def evaluate(model: Any, dev_loader: DataLoader, accelerator: Accelerator) -> fl
         leave=False,
         disable=not accelerator.is_main_process,
     ):
-        scores = extract_yes_no_logits(
-            model,
-            batch["input_ids"],
-            batch["attention_mask"],
-        ).float()
+        input_ids = batch["input_ids"]
+        attention_mask = batch["attention_mask"]
 
-        positive_score = scores[0].item()
-        rank = 1 + sum(score.item() >= positive_score for score in scores[1:])
+        logit_parts: list[torch.Tensor] = []
+        for chunk_ids, chunk_mask in zip(
+            input_ids.split(micro_batch_size, dim=0),
+            attention_mask.split(micro_batch_size, dim=0),
+        ):
+            logit_parts.append(
+                extract_yes_no_logits(model, chunk_ids, chunk_mask)
+            )
+        scores = torch.cat(logit_parts, dim=0).float()
+
+        num_positives: int = batch["num_positives"]
+        best_pos_score = scores[:num_positives].max().item()
+        rank = 1 + sum(
+            s.item() >= best_pos_score for s in scores[num_positives:]
+        )
         reciprocal_ranks.append(1.0 / rank)
 
     rr_tensor = torch.tensor(
@@ -441,15 +474,26 @@ class RerankerTrainer:
         batch: dict[str, torch.Tensor],
     ) -> tuple[LossBreakdown, float | None]:
         with self.accelerator.accumulate(self.model):
-            student_z = extract_yes_no_logits(
-                self.model,
-                batch["input_ids"],
-                batch["attention_mask"],
-            ).float().unsqueeze(0)
+            micro_bs = self.cfg.training.micro_batch_size
+            input_ids = batch["input_ids"]
+            attention_mask = batch["attention_mask"]
+
+            logit_parts: list[torch.Tensor] = []
+            for chunk_ids, chunk_mask in zip(
+                input_ids.split(micro_bs, dim=0),
+                attention_mask.split(micro_bs, dim=0),
+            ):
+                logit_parts.append(
+                    extract_yes_no_logits(self.model, chunk_ids, chunk_mask)
+                )
+            student_z = torch.cat(logit_parts, dim=0).float().unsqueeze(0)
             teacher_scores = batch["teacher_scores"].float().unsqueeze(0).to(
                 student_z.device
             )
-            losses = compute_losses(student_z, teacher_scores, self.cfg)
+            num_positives: int = batch["num_positives"]
+            losses = compute_losses(
+                student_z, teacher_scores, self.cfg, num_positives
+            )
 
             self.accelerator.backward(losses.total)
 
@@ -518,7 +562,12 @@ class RerankerTrainer:
         self.accelerator.print(
             f"\n[{stage.capitalize()}] samples_seen={self.state.global_samples_seen}"
         )
-        mrr = evaluate(self.model, self.dev_loader, self.accelerator)
+        mrr = evaluate(
+            self.model,
+            self.dev_loader,
+            self.accelerator,
+            micro_batch_size=self.cfg.training.micro_batch_size,
+        )
         is_best = mrr > self.state.best_mrr
         if is_best:
             self.state.best_mrr = mrr

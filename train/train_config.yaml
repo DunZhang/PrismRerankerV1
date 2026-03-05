@@ -1,5 +1,5 @@
 model:
-  path: "/mnt/d/PublicModels/Qwen3-Reranker-0.6B"
+  path: "/mnt/data/public_models/Qwen3-Reranker-0.6B"
   max_seq_length: 2048
   dtype: "bfloat16"  # bfloat16 | float16 | float32 | null
   load_in_4bit: false
@@ -22,10 +22,10 @@ lora:
   use_rslora: false
 
 data:
-  train_file: "/mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_train.jsonl"
-  dev_file: "/mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_dev.jsonl"
-  train_samples: 10000  # null 表示全量，设为整数则随机采样 N 条
-  eval_samples: 1000  # null 表示 dev 全量评估
+  train_file: "/mnt/data/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_train_filtered.jsonl"
+  dev_file: "/mnt/data/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_dev_filtered.jsonl"
+  train_samples: null  # null 表示全量，设为整数则随机采样 N 条
+  eval_samples: null  # null 表示 dev 全量评估
   num_workers: 2
   pin_memory: true
 
@@ -36,22 +36,23 @@ training:
   warmup_steps: 100
   lr_scheduler: "cosine"  # cosine | linear
   grad_accum_steps: 4
+  micro_batch_size: 8  # 每次 forward 的序列数，减小可省显存
   max_grad_norm: 1.0  # 0 表示不做梯度裁剪
   seed: 42
 
 loss:
-  alpha_rank: 1.0
+  alpha_rank: 0.8
   beta_list: 1.0
   gamma_point: 0.5
-  temperature: 2.0
-  hard_neg_scale: 5.0
+  temperature: 1.5
+  hard_neg_scale: 3.0
 
 evaluation:
   interval_samples: 1000  # 按全局 seen samples 触发 dev MRR
 
 output:
-  dir: "./train/test_output_on_rtx4080"
-  run_name: "qwen3-reranker-0.6b-distill"
+  dir: "/mnt/data/train_output/test1"
+  run_name: "test1"
   save_every_eval: true  # 每次评估都保存 checkpoint 到 samples-{N}/
   save_last_checkpoint: false  # 训练结束后额外保存 last/
 

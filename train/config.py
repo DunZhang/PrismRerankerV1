@@ -53,6 +53,7 @@ class TrainingConfig:
     warmup_steps: int = 100
     lr_scheduler: str = "cosine"
     grad_accum_steps: int = 4
+    micro_batch_size: int = 2
     max_grad_norm: float = 1.0
     seed: int = 42
 
@@ -265,6 +266,8 @@ class TrainConfig:
             raise ValueError("training.warmup_steps must be >= 0.")
         if self.training.grad_accum_steps <= 0:
             raise ValueError("training.grad_accum_steps must be > 0.")
+        if self.training.micro_batch_size <= 0:
+            raise ValueError("training.micro_batch_size must be > 0.")
         if self.training.max_grad_norm < 0:
             raise ValueError("training.max_grad_norm must be >= 0.")
         if self.evaluation.interval_samples <= 0:

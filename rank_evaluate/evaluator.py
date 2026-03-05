@@ -101,11 +101,23 @@ def evaluate_dataset(
         documents = (
             [segment_document(doc) for doc in sample.documents]
             if segment_docs
-            else sample.documents
+            else list(sample.documents)
         )
+        relevance = list(sample.relevance)
+
+        # Filter out empty/whitespace-only documents (some APIs reject them)
+        non_empty = [
+            (doc, rel)
+            for doc, rel in zip(documents, relevance)
+            if doc.strip()
+        ]
+        if len(non_empty) < len(documents):
+            documents = [doc for doc, _ in non_empty]
+            relevance = [rel for _, rel in non_empty]
+
         scores = model.rerank(sample.query, documents)
-        score = ndcg_at_k(sample.relevance, scores, k=DEFAULT_NDCG_K)
-        ckpt.save(idx, score, scores, sample.relevance)
+        score = ndcg_at_k(relevance, scores, k=DEFAULT_NDCG_K)
+        ckpt.save(idx, score, scores, relevance)
 
     ndcg_list = [ckpt.get_ndcg(idx) for idx in selected_indices]
     return DatasetEvaluationResult(

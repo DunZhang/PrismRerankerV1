@@ -43,7 +43,7 @@ class QwenVLLMReranker(BaseReranker):
         model_id: str = _DEFAULT_MODEL_ID,
         instruction: str = _DEFAULT_INSTRUCTION,
         max_length: int = 8192,
-        gpu_memory_utilization: float = 0.8,
+        gpu_memory_utilization: float = 0.45,
         prompt_template: str | None = None,
     ) -> None:
         import torch
@@ -134,10 +134,29 @@ class QwenVLLMReranker(BaseReranker):
         ]
         return prompts  # type: ignore[return-value]
 
-    def rerank(self, query: str, documents: list[str]) -> list[float]:
-        """Score all documents for a query via vLLM batch generation."""
+    def rerank(
+        self, query: str, documents: list[str], batch_size: int = 4
+    ) -> list[float]:
+        """Score all documents for a query via vLLM batch generation.
+
+        Args:
+            query: The search query.
+            documents: Documents to score against the query.
+            batch_size: Max documents per vLLM call. 0 means all at once.
+        """
         prompts = self._build_token_prompts(query, documents)
-        outputs = self._model.generate(prompts, self._sampling_params, use_tqdm=False)
+
+        if batch_size > 0:
+            outputs = []
+            for i in range(0, len(prompts), batch_size):
+                batch = prompts[i : i + batch_size]
+                outputs.extend(
+                    self._model.generate(batch, self._sampling_params, use_tqdm=False)
+                )
+        else:
+            outputs = self._model.generate(
+                prompts, self._sampling_params, use_tqdm=False
+            )
 
         scores: list[float] = []
         for output in outputs:

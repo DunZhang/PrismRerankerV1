@@ -39,10 +39,9 @@ def merge_and_save(
 
 
 if __name__ == "__main__":
-    base_dir = Path("/mnt/d/Codes/PrismRerankerV1/train/test_output_on_rtx4080")
 
     merge_and_save(
-        base_model_path="/mnt/d/PublicModels/Qwen3-Reranker-0.6B",
-        adapter_path=str(base_dir / "best"),
-        output_path=str(base_dir / "best_megred_lora"),
+        base_model_path="/mnt/data/public_models/Qwen3-Reranker-0.6B",
+        adapter_path=str("/mnt/data/train_output/test1/samples-10000"),
+        output_path=str("/mnt/data/train_output/test1/samples-10000_megred_lora"),
     )

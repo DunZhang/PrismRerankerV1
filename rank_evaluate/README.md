@@ -27,7 +27,13 @@ uv run python -m rank_evaluate.report_from_cache
 uv run python -m rank_evaluate   --model prism-reranker-0.6b-vllm   --model_path ./train/test_output_on_rtx4080/best_megred_lora   --num_neg 100 --data_dir /mnt/g/PrismRerankerV1Data/posir_benchmark_topk  --max_queries 100
 
 
-uv run python -m rank_evaluate   --model qwen3-reranker-0.6b-vllm  --model_path /mnt/d/PublicModels/Qwen3-Reranker-0.6B   --num_neg 100 --data_dir /mnt/g/PrismRerankerV1Data/posir_benchmark_topk  --max_queries 100
+uv run python -m rank_evaluate   --model qwen3-reranker-0.6b-vllm  --model_path /mnt/data/public_models/Qwen3-Reranker-0.6B   --num_neg 100 --data_dir /mnt/g/PrismRerankerV1Data/posir_benchmark_topk  --max_queries 100
+
+
+python -m rank_evaluate   --model qwen3-reranker-0.6b-vllm  --model_path /mnt/data/public_models/Qwen3-Reranker-0.6B   --num_neg 100 --data_dir /mnt/data/prism_reranker_test_data/polysemy_true/
+
+
+uv run python -m rank_evaluate   --model voyage-rerank-2.5  --data_dir /mnt/d/data/prism_reranker_test_data   --num_neg 100 --max_queries 100
 ```
 
 ## 2. 输入数据格式

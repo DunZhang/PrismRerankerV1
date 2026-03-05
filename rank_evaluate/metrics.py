@@ -8,7 +8,9 @@ from collections.abc import Sequence
 DEFAULT_NDCG_K = 10
 
 
-def ranked_relevance(relevance: Sequence[int], scores: Sequence[float]) -> list[int]:
+def ranked_relevance(
+    relevance: Sequence[float], scores: Sequence[float]
+) -> list[float]:
     """Return relevance labels ordered by predicted score descending."""
     if len(relevance) != len(scores):
         raise ValueError("relevance and scores must have same length")
@@ -17,7 +19,7 @@ def ranked_relevance(relevance: Sequence[int], scores: Sequence[float]) -> list[
     return [relevance[idx] for idx in ranked_indices]
 
 
-def dcg_at_k(relevance_ranked: Sequence[int], k: int) -> float:
+def dcg_at_k(relevance_ranked: Sequence[float], k: int) -> float:
     """Compute Discounted Cumulative Gain at rank k."""
     return sum(
         rel / math.log2(rank + 2)
@@ -27,7 +29,7 @@ def dcg_at_k(relevance_ranked: Sequence[int], k: int) -> float:
 
 
 def ndcg_at_k(
-    relevance: Sequence[int],
+    relevance: Sequence[float],
     scores: Sequence[float],
     k: int = DEFAULT_NDCG_K,
 ) -> float:

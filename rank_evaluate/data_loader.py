@@ -24,7 +24,7 @@ class QuerySample:
 
     query: str
     documents: list[str]
-    relevance: list[int]
+    relevance: list[float]
 
 
 def iter_records(jsonl_path: Path) -> list[QueryRecord]:
@@ -52,13 +52,76 @@ def build_sample(
 ) -> QuerySample:
     """Sample negatives and shuffle the final candidate list for one query."""
     sampled_negs = rng.sample(record.negatives, min(num_neg, len(record.negatives)))
-    documents_and_relevance = [(doc, 1) for doc in record.positives] + [
-        (doc, 0) for doc in sampled_negs
-    ]
+    documents_and_relevance: list[tuple[str, float]] = [
+        (doc, 1.0) for doc in record.positives
+    ] + [(doc, 0.0) for doc in sampled_negs]
     rng.shuffle(documents_and_relevance)
     documents = [document for document, _ in documents_and_relevance]
     relevance = [label for _, label in documents_and_relevance]
     return QuerySample(query=record.query, documents=documents, relevance=relevance)
+
+
+def _detect_format(jsonl_path: Path) -> str:
+    """Detect JSONL format by inspecting keys of the first record.
+
+    Returns:
+        ``"pos_neg"`` for the standard ``pos_list``/``neg_list`` format,
+        ``"documents"`` for the graded-relevance ``documents`` format.
+    """
+    with open(jsonl_path, encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+            payload = json.loads(line)
+            if "documents" in payload:
+                return "documents"
+            return "pos_neg"
+    raise ValueError(f"Empty JSONL file: {jsonl_path}")
+
+
+def _load_documents_format(jsonl_path: Path) -> list[QuerySample]:
+    """Load a dataset in the graded-relevance ``documents`` format.
+
+    Each line has ``query``, ``query_id`` (optional), and ``documents``
+    (a list of objects with ``content`` and ``relevance_score``).
+    All documents are used as-is — no negative sampling is performed.
+    """
+    samples: list[QuerySample] = []
+    with open(jsonl_path, encoding="utf-8") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Invalid JSON in {jsonl_path} at line {line_number}: {exc}"
+                ) from exc
+
+            query = payload.get("query")
+            if not isinstance(query, str):
+                raise ValueError(
+                    f"{jsonl_path} line {line_number}: 'query' must be a string."
+                )
+
+            docs = payload.get("documents")
+            if not isinstance(docs, list) or not docs:
+                raise ValueError(
+                    f"{jsonl_path} line {line_number}: 'documents' must be a non-empty list."
+                )
+
+            documents: list[str] = []
+            relevance: list[float] = []
+            for doc in docs:
+                documents.append(str(doc["content"]))
+                relevance.append(float(doc["relevance_score"]))
+
+            samples.append(
+                QuerySample(query=query, documents=documents, relevance=relevance)
+            )
+    return samples
 
 
 def load_dataset(
@@ -66,7 +129,15 @@ def load_dataset(
     num_neg: int,
     seed: int = 42,
 ) -> list[QuerySample]:
-    """Load a dataset and prepare reranking inputs deterministically."""
+    """Load a dataset and prepare reranking inputs deterministically.
+
+    Automatically detects the JSONL format:
+    - ``pos_list``/``neg_list``: standard binary-relevance format with negative sampling.
+    - ``documents``: graded-relevance format where all documents are pre-provided.
+    """
+    fmt = _detect_format(jsonl_path)
+    if fmt == "documents":
+        return _load_documents_format(jsonl_path)
     rng = random.Random(seed)
     return [build_sample(record, num_neg=num_neg, rng=rng) for record in iter_records(jsonl_path)]
 

@@ -58,7 +58,7 @@ _ENC = tiktoken.get_encoding("cl100k_base")
 
 def _token_len(text: str) -> int:
     """Return the number of tokens in *text* using cl100k_base."""
-    return len(_ENC.encode(text))
+    return len(_ENC.encode(text, disallowed_special=()))
 
 
 # ---------------------------------------------------------------------------

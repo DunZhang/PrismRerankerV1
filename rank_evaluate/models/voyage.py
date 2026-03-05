@@ -10,6 +10,7 @@ from .base import BaseReranker
 
 _DEFAULT_MODEL = "rerank-2-lite"
 _MAX_DOCS_PER_CALL = 1000  # Voyage limit
+_MAX_TOKENS_PER_BATCH = 500_000  # Voyage allows 600k, leave margin
 
 # Voyage 2.5 series requires an instruction prefix on the query.
 _INSTRUCTION_MODELS = {"rerank-2.5", "rerank-2.5-lite"}
@@ -151,18 +152,54 @@ class VoyageReranker(BaseReranker):
             )
         print(f"  [voyage] stats @ {self._total_calls} calls | {' | '.join(parts)}")
 
-    def rerank(self, query: str, documents: list[str]) -> list[float]:
-        """Score documents using the Voyage rerank API with rate limiting."""
-        if self.model in _INSTRUCTION_MODELS:
-            query = f"{_QUERY_INSTRUCTION}{query}"
-        estimated = self._estimate_tokens(query, documents)
+    def _split_batches(
+        self, query: str, documents: list[str]
+    ) -> list[list[int]]:
+        """Split document indices into batches respecting token limits.
 
-        slot_idx, client, limiter = self._pick_slot()
+        Each batch stays under both _MAX_DOCS_PER_CALL and
+        _MAX_TOKENS_PER_BATCH (estimated).
+        """
+        query_tokens = max(len(query) // 3, 1)
+        batches: list[list[int]] = []
+        current_batch: list[int] = []
+        current_tokens = query_tokens  # query counted once per batch
+
+        for i, doc in enumerate(documents):
+            doc_tokens = max(len(doc) // 3, 1)
+            would_exceed_tokens = (current_tokens + doc_tokens) > _MAX_TOKENS_PER_BATCH
+            would_exceed_docs = len(current_batch) >= _MAX_DOCS_PER_CALL
+
+            if current_batch and (would_exceed_tokens or would_exceed_docs):
+                batches.append(current_batch)
+                current_batch = []
+                current_tokens = query_tokens
+
+            current_batch.append(i)
+            current_tokens += doc_tokens
+
+        if current_batch:
+            batches.append(current_batch)
+
+        return batches
+
+    def _rerank_batch(
+        self,
+        query: str,
+        documents: list[str],
+        slot_idx: int,
+        client: voyageai.Client,
+        limiter: _TokenRateLimiter,
+    ) -> list[tuple[int, float]]:
+        """Call the Voyage API for a single batch with retries.
+
+        Returns list of (index, score) pairs where index is relative
+        to the provided documents list.
+        """
+        estimated = self._estimate_tokens(query, documents)
         limiter.wait_if_needed(estimated)
 
-        scores = [0.0] * len(documents)
         last_err: Exception | None = None
-
         for delay in [0, *_RETRY_DELAYS]:
             if delay:
                 time.sleep(delay)
@@ -173,7 +210,6 @@ class VoyageReranker(BaseReranker):
                     model=self.model,
                     truncation=True,
                 )
-                # Record actual usage from response
                 actual_tokens = getattr(result, "total_tokens", None)
                 used = actual_tokens or estimated
                 limiter.record(used)
@@ -182,13 +218,13 @@ class VoyageReranker(BaseReranker):
                 self._total_calls += 1
                 self._log_stats()
 
-                for item in result.results:
-                    scores[item.index] = float(item.relevance_score)
-                return scores
+                return [
+                    (item.index, float(item.relevance_score))
+                    for item in result.results
+                ]
             except Exception as e:
                 last_err = e
                 if "rate" in str(e).lower():
-                    # On rate limit, record the estimate so limiter backs off
                     limiter.record(estimated)
                 print(
                     f"  [voyage] key{slot_idx + 1} API error "
@@ -198,3 +234,22 @@ class VoyageReranker(BaseReranker):
         raise RuntimeError(
             f"Voyage API failed after {len(_RETRY_DELAYS) + 1} attempts"
         ) from last_err
+
+    def rerank(self, query: str, documents: list[str]) -> list[float]:
+        """Score documents using the Voyage rerank API with rate limiting."""
+        if self.model in _INSTRUCTION_MODELS:
+            query = f"{_QUERY_INSTRUCTION}{query}"
+
+        batches = self._split_batches(query, documents)
+        scores = [0.0] * len(documents)
+
+        for batch_indices in batches:
+            slot_idx, client, limiter = self._pick_slot()
+            batch_docs = [documents[i] for i in batch_indices]
+            results = self._rerank_batch(
+                query, batch_docs, slot_idx, client, limiter
+            )
+            for local_idx, score in results:
+                scores[batch_indices[local_idx]] = score
+
+        return scores

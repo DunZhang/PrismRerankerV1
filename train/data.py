@@ -10,16 +10,12 @@ from torch.utils.data import Dataset
 
 from train.constants import build_prompt
 
-EXPECTED_POSITIVES = 1
-EXPECTED_NEGATIVES = 7
-EXPECTED_DOCS = EXPECTED_POSITIVES + EXPECTED_NEGATIVES
-
-
 @dataclass(frozen=True)
 class RerankSample:
     query: str
     docs: list[str]
     teacher_scores: list[float]
+    num_positives: int
 
 
 def _validate_sample_shape(data: dict[str, Any], line_number: int, source: str) -> None:
@@ -28,25 +24,19 @@ def _validate_sample_shape(data: dict[str, Any], line_number: int, source: str) 
     teacher_pos_scores = data["teacher_pos_scores"]
     teacher_neg_scores = data["teacher_neg_scores"]
 
-    if len(pos_list) != EXPECTED_POSITIVES:
+    if len(pos_list) < 1:
+        raise ValueError(f"{source}:{line_number} requires at least 1 positive doc.")
+    if len(neg_list) < 1:
+        raise ValueError(f"{source}:{line_number} requires at least 1 negative doc.")
+    if len(teacher_pos_scores) != len(pos_list):
         raise ValueError(
-            f"{source}:{line_number} expects {EXPECTED_POSITIVES} positive doc, "
-            f"got {len(pos_list)}."
+            f"{source}:{line_number} teacher_pos_scores length ({len(teacher_pos_scores)}) "
+            f"!= pos_list length ({len(pos_list)})."
         )
-    if len(neg_list) != EXPECTED_NEGATIVES:
+    if len(teacher_neg_scores) != len(neg_list):
         raise ValueError(
-            f"{source}:{line_number} expects {EXPECTED_NEGATIVES} negative docs, "
-            f"got {len(neg_list)}."
-        )
-    if len(teacher_pos_scores) != EXPECTED_POSITIVES:
-        raise ValueError(
-            f"{source}:{line_number} expects {EXPECTED_POSITIVES} positive score, "
-            f"got {len(teacher_pos_scores)}."
-        )
-    if len(teacher_neg_scores) != EXPECTED_NEGATIVES:
-        raise ValueError(
-            f"{source}:{line_number} expects {EXPECTED_NEGATIVES} negative scores, "
-            f"got {len(teacher_neg_scores)}."
+            f"{source}:{line_number} teacher_neg_scores length ({len(teacher_neg_scores)}) "
+            f"!= neg_list length ({len(neg_list)})."
         )
 
     all_scores = teacher_pos_scores + teacher_neg_scores
@@ -59,13 +49,11 @@ def _parse_sample(data: dict[str, Any], line_number: int, source: str) -> Rerank
     docs = data["pos_list"] + data["neg_list"]
     teacher_scores = data["teacher_pos_scores"] + data["teacher_neg_scores"]
 
-    if len(docs) != EXPECTED_DOCS or len(teacher_scores) != EXPECTED_DOCS:
-        raise ValueError(f"{source}:{line_number} does not contain {EXPECTED_DOCS} docs.")
-
     return RerankSample(
         query=data["query"],
         docs=docs,
         teacher_scores=teacher_scores,
+        num_positives=len(data["pos_list"]),
     )
 
 
@@ -123,6 +111,7 @@ def make_collate_fn(tokenizer: Any, max_length: int) -> Any:
             "input_ids": encoded["input_ids"],
             "attention_mask": encoded["attention_mask"],
             "teacher_scores": torch.tensor(sample.teacher_scores, dtype=torch.float32),
+            "num_positives": sample.num_positives,
         }
 
     return collate_fn

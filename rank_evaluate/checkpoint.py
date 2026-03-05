@@ -11,7 +11,7 @@ Cache layout:
   max_queries=50 run and a full run share the same cache files.
 
 Each line in the JSONL:
-  {"idx": <int>, "ndcg": <float>, "scores": [<float>, ...], "relevance": [<int>, ...]}
+  {"idx": <int>, "ndcg": <float>, "scores": [<float>, ...], "relevance": [<float>, ...]}
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ class CacheEntry:
     idx: int
     ndcg: float
     scores: list[float]
-    relevance: list[int]
+    relevance: list[float]
 
     def to_json_dict(self) -> dict[str, object]:
         return {
@@ -81,7 +81,7 @@ class CheckpointManager:
         idx: int,
         ndcg: float,
         scores: list[float],
-        relevance: list[int],
+        relevance: list[float],
     ) -> None:
         """Append a result for query index to the cache file."""
         entry = CacheEntry(idx=idx, ndcg=ndcg, scores=scores, relevance=relevance)
@@ -112,7 +112,7 @@ def load_cache_entries(cache_file: Path) -> list[CacheEntry]:
                         idx=int(payload["idx"]),
                         ndcg=float(payload["ndcg"]),
                         scores=[float(score) for score in payload["scores"]],
-                        relevance=[int(label) for label in payload["relevance"]],
+                        relevance=[float(label) for label in payload["relevance"]],
                     )
                 )
             except (KeyError, TypeError, ValueError, json.JSONDecodeError):
