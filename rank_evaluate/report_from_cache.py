@@ -63,9 +63,7 @@ def collect_results(
         model_info = ", ".join(
             f"{name}({len(ds)})" for name, ds in model_datasets.items()
         )
-        raise ValueError(
-            f"No common datasets across models. Counts: {model_info}"
-        )
+        raise ValueError(f"No common datasets across models. Counts: {model_info}")
 
     print(f"Models: {len(model_dirs)}  |  Common datasets: {len(common)}")
     for name, ds in model_datasets.items():

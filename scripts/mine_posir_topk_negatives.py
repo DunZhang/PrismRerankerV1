@@ -18,7 +18,6 @@ Usage:
 
 import argparse
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -26,7 +25,9 @@ import polars as pl
 from sentence_transformers import SentenceTransformer
 
 
-def encode_texts(model: SentenceTransformer, texts: list[str], batch_size: int) -> np.ndarray:
+def encode_texts(
+    model: SentenceTransformer, texts: list[str], batch_size: int
+) -> np.ndarray:
     """Encode texts, returning L2-normalized embeddings."""
     return model.encode(
         texts,
@@ -56,8 +57,7 @@ def process_dataset(
 
     # Build {query_id -> [positive corpus_ids]} from qrels
     qrels_pos = (
-        qrels_df
-        .filter(pl.col("score") > 0)
+        qrels_df.filter(pl.col("score") > 0)
         .group_by("query-id")
         .agg(pl.col("corpus-id").alias("pos_corpus_ids"))
     )
@@ -87,7 +87,9 @@ def process_dataset(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     count = 0
     with open(output_path, "w", encoding="utf-8") as fw:
-        for qi, (qid, query_text) in enumerate(zip(filtered_query_ids, filtered_query_texts)):
+        for qi, (qid, query_text) in enumerate(
+            zip(filtered_query_ids, filtered_query_texts)
+        ):
             pos_ids = qrels_dict[qid]
             pos_set = set(pos_ids)
 
@@ -113,20 +115,49 @@ def process_dataset(
                 if len(neg_texts) >= top_k:
                     break
 
-            fw.write(json.dumps({"query": query_text, "pos_list": pos_texts, "neg_list": neg_texts}, ensure_ascii=False) + "\n")
+            fw.write(
+                json.dumps(
+                    {"query": query_text, "pos_list": pos_texts, "neg_list": neg_texts},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
             count += 1
 
     return count
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Prepare PosIR-Benchmark hard-negative JSONL files")
-    parser.add_argument("--benchmark-dir", default="/mnt/g/PosIR-Benchmark-v1", help="Root benchmark directory")
-    parser.add_argument("--output-dir", default="/mnt/g/PrismRerankerV1Data/posir_benchmark", help="Output directory")
-    parser.add_argument("--languages", nargs="+", default=["cmn-Hans", "eng-Latn"], help="Language codes to process")
-    parser.add_argument("--batch-size", type=int, default=512, help="Embedding batch size")
-    parser.add_argument("--model-name", default="sentence-transformers/static-similarity-mrl-multilingual-v1", help="SentenceTransformer model")
-    parser.add_argument("--top-k", type=int, default=100, help="Number of hard negatives to retrieve")
+    parser = argparse.ArgumentParser(
+        description="Prepare PosIR-Benchmark hard-negative JSONL files"
+    )
+    parser.add_argument(
+        "--benchmark-dir",
+        default="/mnt/g/PosIR-Benchmark-v1",
+        help="Root benchmark directory",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="/mnt/g/PrismRerankerV1Data/posir_benchmark",
+        help="Output directory",
+    )
+    parser.add_argument(
+        "--languages",
+        nargs="+",
+        default=["cmn-Hans", "eng-Latn"],
+        help="Language codes to process",
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=512, help="Embedding batch size"
+    )
+    parser.add_argument(
+        "--model-name",
+        default="sentence-transformers/static-similarity-mrl-multilingual-v1",
+        help="SentenceTransformer model",
+    )
+    parser.add_argument(
+        "--top-k", type=int, default=100, help="Number of hard negatives to retrieve"
+    )
     args = parser.parse_args()
 
     benchmark_dir = Path(args.benchmark_dir)
@@ -151,7 +182,9 @@ def main():
             output_path = output_dir / f"{lang}__{dataset_name}_top{args.top_k}.jsonl"
 
             if output_path.exists():
-                print(f"  [{lang}] ({di}/{len(datasets)}) {dataset_name}: already exists, skipping")
+                print(
+                    f"  [{lang}] ({di}/{len(datasets)}) {dataset_name}: already exists, skipping"
+                )
                 continue
 
             print(f"  [{lang}] ({di}/{len(datasets)}) {dataset_name}...")

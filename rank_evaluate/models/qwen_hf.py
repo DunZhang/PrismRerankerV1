@@ -25,20 +25,11 @@ Template format (from official model card):
 
 import torch
 
+from shared.prompts import DEFAULT_EVAL_INSTRUCTION, render_raw_prompt
+
 from .base import BaseReranker
 
 _MODEL_ID = "Qwen/Qwen3-Reranker-0.6B"
-
-_SYSTEM_PROMPT = (
-    "Judge whether the Document meets the requirements based on the Query and the "
-    'Instruct provided. Note that the answer can only be "yes" or "no".'
-)
-_DEFAULT_INSTRUCTION = (
-    "Given a web search query, retrieve relevant passages that answer the query"
-)
-
-# Suffix pre-fills the empty think block so model jumps straight to yes/no
-_SUFFIX = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
 
 
 class QwenHFReranker(BaseReranker):
@@ -58,7 +49,7 @@ class QwenHFReranker(BaseReranker):
         model_id: str = _MODEL_ID,
         device: str = "cuda",
         torch_dtype: torch.dtype = torch.bfloat16,
-        instruction: str = _DEFAULT_INSTRUCTION,
+        instruction: str = DEFAULT_EVAL_INSTRUCTION,
         max_length: int = 8192,
         batch_size: int = 8,
     ) -> None:
@@ -86,16 +77,6 @@ class QwenHFReranker(BaseReranker):
             f"batch_size={batch_size}"
         )
 
-    def _build_prompt(self, query: str, document: str) -> str:
-        prefix = (
-            f"<|im_start|>system\n{_SYSTEM_PROMPT}<|im_end|>\n"
-            f"<|im_start|>user\n"
-            f"<Instruct>: {self._instruction}\n"
-            f"<Query>: {query}\n"
-            f"<Document>: {document}"
-        )
-        return prefix + _SUFFIX
-
     def _score_batch(self, prompts: list[str]) -> list[float]:
         """Run one batched forward pass and return yes-probabilities."""
         inputs = self._tokenizer(
@@ -117,7 +98,10 @@ class QwenHFReranker(BaseReranker):
 
     def rerank(self, query: str, documents: list[str]) -> list[float]:
         """Score all documents, batching by similar length to minimise padding."""
-        prompts = [self._build_prompt(query, doc) for doc in documents]
+        prompts = [
+            render_raw_prompt(query, doc, instruction=self._instruction)
+            for doc in documents
+        ]
 
         # Sort by document length (good proxy for token count; query prefix is constant)
         order = sorted(range(len(documents)), key=lambda i: len(documents[i]))

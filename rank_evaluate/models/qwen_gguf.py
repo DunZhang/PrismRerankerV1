@@ -23,18 +23,9 @@ Template format (from official model card):
 
 import math
 
+from shared.prompts import DEFAULT_EVAL_INSTRUCTION, render_raw_prompt
+
 from .base import BaseReranker
-
-_SYSTEM_PROMPT = (
-    "Judge whether the Document meets the requirements based on the Query and the "
-    'Instruct provided. Note that the answer can only be "yes" or "no".'
-)
-_DEFAULT_INSTRUCTION = (
-    "Given a web search query, retrieve relevant passages that answer the query"
-)
-
-# Suffix pre-fills the empty think block so model jumps straight to yes/no
-_SUFFIX = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
 
 # Variants to try when looking for yes/no in logprobs dict
 _YES_VARIANTS = ("yes", "Yes", " yes", " Yes", "YES")
@@ -59,7 +50,7 @@ class QwenGGUFReranker(BaseReranker):
         model_path: str,
         n_gpu_layers: int = -1,
         n_ctx: int = 8192,
-        instruction: str = _DEFAULT_INSTRUCTION,
+        instruction: str = DEFAULT_EVAL_INSTRUCTION,
         logprobs_k: int = 200,
     ) -> None:
         try:
@@ -87,19 +78,13 @@ class QwenGGUFReranker(BaseReranker):
         self._logprobs_k = logprobs_k
         print("[qwen-gguf] Model loaded.")
 
-    def _build_prompt(self, query: str, document: str) -> str:
-        prefix = (
-            f"<|im_start|>system\n{_SYSTEM_PROMPT}<|im_end|>\n"
-            f"<|im_start|>user\n"
-            f"<Instruct>: {self._instruction}\n"
-            f"<Query>: {query}\n"
-            f"<Document>: {document}"
-        )
-        return prefix + _SUFFIX
-
     def _score_pair(self, query: str, document: str) -> float:
         """Return yes-probability for a single (query, doc) pair."""
-        prompt = self._build_prompt(query, document)
+        prompt = render_raw_prompt(
+            query,
+            document,
+            instruction=self._instruction,
+        )
         result = self._llm.create_completion(
             prompt,
             max_tokens=1,

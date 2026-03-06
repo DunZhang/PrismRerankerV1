@@ -266,16 +266,12 @@ def evaluate(
             input_ids.split(micro_batch_size, dim=0),
             attention_mask.split(micro_batch_size, dim=0),
         ):
-            logit_parts.append(
-                extract_yes_no_logits(model, chunk_ids, chunk_mask)
-            )
+            logit_parts.append(extract_yes_no_logits(model, chunk_ids, chunk_mask))
         scores = torch.cat(logit_parts, dim=0).float()
 
         num_positives: int = batch["num_positives"]
         best_pos_score = scores[:num_positives].max().item()
-        rank = 1 + sum(
-            s.item() >= best_pos_score for s in scores[num_positives:]
-        )
+        rank = 1 + sum(s.item() >= best_pos_score for s in scores[num_positives:])
         reciprocal_ranks.append(1.0 / rank)
 
     rr_tensor = torch.tensor(
@@ -407,22 +403,22 @@ class RerankerTrainer:
             f"world_size={self.accelerator.num_processes})"
         )
         if self.logger:
-            self.logger.info(
-                f"Optimizer updates: {self.total_optimizer_updates}"
-            )
-            self.logger.info(
-                f"Scheduler steps: {self.total_scheduler_steps}"
-            )
+            self.logger.info(f"Optimizer updates: {self.total_optimizer_updates}")
+            self.logger.info(f"Scheduler steps: {self.total_scheduler_steps}")
             self.logger.info("Training started.")
 
-        self.model, self.optimizer, self.train_loader, self.dev_loader, self.scheduler = (
-            self.accelerator.prepare(
-                self.model,
-                self.optimizer,
-                self.train_loader,
-                self.dev_loader,
-                self.scheduler,
-            )
+        (
+            self.model,
+            self.optimizer,
+            self.train_loader,
+            self.dev_loader,
+            self.scheduler,
+        ) = self.accelerator.prepare(
+            self.model,
+            self.optimizer,
+            self.train_loader,
+            self.dev_loader,
+            self.scheduler,
         )
 
         self.model.train()
@@ -487,21 +483,16 @@ class RerankerTrainer:
                     extract_yes_no_logits(self.model, chunk_ids, chunk_mask)
                 )
             student_z = torch.cat(logit_parts, dim=0).float().unsqueeze(0)
-            teacher_scores = batch["teacher_scores"].float().unsqueeze(0).to(
-                student_z.device
+            teacher_scores = (
+                batch["teacher_scores"].float().unsqueeze(0).to(student_z.device)
             )
             num_positives: int = batch["num_positives"]
-            losses = compute_losses(
-                student_z, teacher_scores, self.cfg, num_positives
-            )
+            losses = compute_losses(student_z, teacher_scores, self.cfg, num_positives)
 
             self.accelerator.backward(losses.total)
 
             grad_norm: float | None = None
-            if (
-                self.accelerator.sync_gradients
-                and self.cfg.training.max_grad_norm > 0
-            ):
+            if self.accelerator.sync_gradients and self.cfg.training.max_grad_norm > 0:
                 grad_norm = self.accelerator.clip_grad_norm_(
                     self.model.parameters(),
                     self.cfg.training.max_grad_norm,
@@ -598,8 +589,7 @@ class RerankerTrainer:
                     self.model,
                     self.tokenizer,
                     self.cfg,
-                    self.output_dir
-                    / f"samples-{self.state.global_samples_seen}",
+                    self.output_dir / f"samples-{self.state.global_samples_seen}",
                     self.accelerator,
                 )
             if self.logger:
@@ -634,8 +624,7 @@ class RerankerTrainer:
                 if self.accelerator.sync_gradients:
                     self.state.optimizer_steps += 1
                     if (
-                        self.state.optimizer_steps
-                        % self.cfg.logging.log_interval_steps
+                        self.state.optimizer_steps % self.cfg.logging.log_interval_steps
                         == 0
                     ):
                         self._emit_train_metrics(
@@ -663,7 +652,9 @@ class RerankerTrainer:
                     self.output_dir / "last",
                     self.accelerator,
                 )
-            self._log_wandb({"best_mrr": self._current_best()}, step=self.state.optimizer_steps)
+            self._log_wandb(
+                {"best_mrr": self._current_best()}, step=self.state.optimizer_steps
+            )
             if self.wandb_run is not None:
                 wandb.finish()
             if self.logger:

@@ -83,7 +83,9 @@ def generate_example(folder: Path, num_samples: int) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="为每个子文件夹的 parquet 生成 example.jsonl")
+    parser = argparse.ArgumentParser(
+        description="为每个子文件夹的 parquet 生成 example.jsonl"
+    )
     parser.add_argument(
         "--data-dir",
         type=Path,

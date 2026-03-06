@@ -24,7 +24,12 @@ def resolve_dtype(name: str | None) -> torch.dtype | None:
 
 
 def load_model_and_tokenizer(cfg: TrainConfig) -> tuple[Any, Any]:
-    from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_kbit_training
+    from peft import (
+        LoraConfig,
+        TaskType,
+        get_peft_model,
+        prepare_model_for_kbit_training,
+    )
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     dtype = resolve_dtype(cfg.model.dtype)

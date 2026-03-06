@@ -51,7 +51,7 @@ NAMES = [
     "webgpt_comparisons",
     "webqa",
     "wikipedia-nq",
-    "yahoo-answers"
+    "yahoo-answers",
 ]
 
 
@@ -67,16 +67,25 @@ def _process_item(item: dict, src: str = None):
     # pos list
     pos_list = item.get("pos")
     neg_list = item.get("neg")
-    if not pos_list or not neg_list or not isinstance(pos_list, list) or not isinstance(neg_list, list):
+    if (
+        not pos_list
+        or not neg_list
+        or not isinstance(pos_list, list)
+        or not isinstance(neg_list, list)
+    ):
         return
     pos_list = [i.strip() for i in pos_list if i.strip()]
     neg_list = [i.strip() for i in neg_list if i.strip()]
     if not pos_list or not neg_list:
         return
-    return json.dumps(
-        {"query": query, "pos_list": pos_list, "neg_list": neg_list, "src": src},
-        ensure_ascii=False
-    ) + "\n"
+    return (
+        json.dumps(
+            {"query": query, "pos_list": pos_list, "neg_list": neg_list, "src": src},
+            ensure_ascii=False,
+        )
+        + "\n"
+    )
+
 
 def merge_and_shuffle_all(save_dir: str):
     all_lines = []
@@ -94,6 +103,7 @@ def merge_and_shuffle_all(save_dir: str):
     with open(out_path, "w", encoding="utf8") as fw:
         fw.writelines(all_lines)
     print(f"合并完成，共 {len(all_lines)} 条，已保存至 {out_path}")
+
 
 if __name__ == "__main__":
     read_dir = "/mnt/g/KaLM-embedding-finetuning-data/"
@@ -121,5 +131,3 @@ if __name__ == "__main__":
         total_n += len(data)
     print(f"全部处理完毕, 总数据量：{total_n}")
     merge_and_shuffle_all(save_dir)
-
-

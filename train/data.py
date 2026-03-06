@@ -10,6 +10,7 @@ from torch.utils.data import Dataset
 
 from train.constants import build_prompt
 
+
 @dataclass(frozen=True)
 class RerankSample:
     query: str

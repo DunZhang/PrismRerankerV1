@@ -139,7 +139,10 @@ def load_dataset(
     if fmt == "documents":
         return _load_documents_format(jsonl_path)
     rng = random.Random(seed)
-    return [build_sample(record, num_neg=num_neg, rng=rng) for record in iter_records(jsonl_path)]
+    return [
+        build_sample(record, num_neg=num_neg, rng=rng)
+        for record in iter_records(jsonl_path)
+    ]
 
 
 def list_datasets(data_dir: Path) -> list[Path]:

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from shared.prompts import TRAINING_INSTRUCTION, render_raw_prompt
+
+# Re-export for backward compatibility (train/data.py uses build_prompt)
+build_prompt = render_raw_prompt
+
 DEFAULT_LORA_TARGET_MODULES: list[str] = [
     "q_proj",
     "k_proj",
@@ -14,32 +19,10 @@ DEFAULT_LORA_TARGET_MODULES: list[str] = [
 YES_TOKEN_ID: int = 9693
 NO_TOKEN_ID: int = 2152
 
-# This is the exact raw prompt expected by the model.
-PROMPT_TEMPLATE: str = (
-    "<|im_start|>system\n"
-    "Judge whether the Document meets the requirements based on "
-    "the Query and the Instruct provided. Note that the answer "
-    'can only be "yes" or "no".<|im_end|>\n'
-    "<|im_start|>user\n"
-    "<Instruct>: Given a query and a document, determine whether "
-    "the document directly and specifically answers or addresses "
-    'the query. After providing a "yes" or "no", then provide '
-    "the following in XML format:\n"
-    "1. The aspects of the Document that help answer the query.\n"
-    "2. The specific segments of the Document (by ID) that are "
-    "helpful for the query.\n"
-    "3. An evidence statement based on the above segments, "
-    "integrated and rewritten to be understandable even without "
-    "the Document. Please retain original phrasing as much as "
-    "possible.\n"
-    "<Query>: {query}\n"
-    "<Document>: {doc}<|im_end|>\n"
-    "<|im_start|>assistant\n"
-    "<think>\n"
-    "</think>\n\n"
-)
-
-
-def build_prompt(query: str, doc: str) -> str:
-    """Build the raw reranker prompt without any chat template."""
-    return PROMPT_TEMPLATE.format(query=query, doc=doc)
+__all__ = [
+    "TRAINING_INSTRUCTION",
+    "build_prompt",
+    "DEFAULT_LORA_TARGET_MODULES",
+    "YES_TOKEN_ID",
+    "NO_TOKEN_ID",
+]

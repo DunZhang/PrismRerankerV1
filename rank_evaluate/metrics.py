@@ -15,7 +15,9 @@ def ranked_relevance(
     if len(relevance) != len(scores):
         raise ValueError("relevance and scores must have same length")
 
-    ranked_indices = sorted(range(len(scores)), key=lambda idx: scores[idx], reverse=True)
+    ranked_indices = sorted(
+        range(len(scores)), key=lambda idx: scores[idx], reverse=True
+    )
     return [relevance[idx] for idx in ranked_indices]
 
 

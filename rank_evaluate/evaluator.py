@@ -8,8 +8,6 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from utils.segmenter import segment_document
-
 from .checkpoint import CheckpointManager
 from .config import DEFAULT_CACHE_DIR, EvaluationConfig, make_run_tag
 from .data_loader import QuerySample, list_datasets, load_dataset
@@ -47,7 +45,6 @@ def evaluate_dataset(
     cache_dir: Path = DEFAULT_CACHE_DIR,
     seed: int = 42,
     max_queries: int | None = None,
-    segment_docs: bool = False,
 ) -> DatasetEvaluationResult:
     """Evaluate a single dataset, using cached per-query results when available.
 
@@ -61,8 +58,6 @@ def evaluate_dataset(
         max_queries: If set, randomly subsample this many queries (fixed by seed).
             Checkpoint keys are always original dataset indices, so a run with
             max_queries=100 and a subsequent full run share the same cache.
-        segment_docs: If True, apply ``segment_document()`` to each document
-            before passing it to the model (used for prism-reranker models).
 
     Returns:
         Mean NDCG@10 over the evaluated queries in this dataset.
@@ -98,18 +93,12 @@ def evaluate_dataset(
             continue
 
         sample = all_samples[idx]
-        documents = (
-            [segment_document(doc) for doc in sample.documents]
-            if segment_docs
-            else list(sample.documents)
-        )
+        documents = list(sample.documents)
         relevance = list(sample.relevance)
 
         # Filter out empty/whitespace-only documents (some APIs reject them)
         non_empty = [
-            (doc, rel)
-            for doc, rel in zip(documents, relevance)
-            if doc.strip()
+            (doc, rel) for doc, rel in zip(documents, relevance) if doc.strip()
         ]
         if len(non_empty) < len(documents):
             documents = [doc for doc, _ in non_empty]
@@ -153,10 +142,6 @@ def run_evaluation(
     print(f"Datasets: {len(datasets)}  |  {max_q_str}")
     print(f"{'=' * 60}\n")
 
-    segment_docs = "prism-reranker" in config.model_name.lower()
-    if segment_docs:
-        print("Document segmentation: ENABLED (prism-reranker)")
-
     results: dict[str, float] = {}
     for dataset_path in datasets:
         dataset_result = evaluate_dataset(
@@ -167,7 +152,6 @@ def run_evaluation(
             cache_dir=config.cache_dir,
             seed=config.seed,
             max_queries=config.max_queries,
-            segment_docs=segment_docs,
         )
         results[dataset_result.dataset_name] = dataset_result.mean_ndcg
         print(

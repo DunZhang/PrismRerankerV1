@@ -1,13 +1,18 @@
 """
 Translate all queries in example.jsonl to Chinese and save locally.
 """
+
 import json
 import time
 from deep_translator import GoogleTranslator
 
 
-INPUT_FILE = "/mnt/g/KaLM-embedding-finetuning-data/llm_retrieval_short_long/example.jsonl"
-OUTPUT_FILE = "/mnt/g/KaLM-embedding-finetuning-data/llm_retrieval_short_long/example_zh.jsonl"
+INPUT_FILE = (
+    "/mnt/g/KaLM-embedding-finetuning-data/llm_retrieval_short_long/example.jsonl"
+)
+OUTPUT_FILE = (
+    "/mnt/g/KaLM-embedding-finetuning-data/llm_retrieval_short_long/example_zh.jsonl"
+)
 
 translator = GoogleTranslator(source="auto", target="zh-CN")
 
@@ -36,14 +41,16 @@ def main():
         data = json.loads(line.strip())
         original_query = data["query"]
 
-        print(f"[{i+1:3d}/{len(lines)}] {original_query[:80]!r}...")
+        print(f"[{i + 1:3d}/{len(lines)}] {original_query[:80]!r}...")
         zh_query = translate_with_retry(original_query)
         print(f"         -> {zh_query[:80]!r}")
 
-        results.append({
-            "query_original": original_query,
-            "query_zh": zh_query,
-        })
+        results.append(
+            {
+                "query_original": original_query,
+                "query_zh": zh_query,
+            }
+        )
 
         # Avoid rate limiting
         time.sleep(0.3)

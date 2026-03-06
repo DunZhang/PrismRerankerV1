@@ -6,22 +6,17 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from shared.env import DEFAULT_PROJECT_ENV_FILE, load_optional_dotenv
+
 PACKAGE_DIR = Path(__file__).parent
 DEFAULT_OUTPUT = PACKAGE_DIR / "evaluation_results.xlsx"
 DEFAULT_CACHE_DIR = PACKAGE_DIR / "cache"
-DEFAULT_ENV_FILE = PACKAGE_DIR.parent / ".env"
+DEFAULT_ENV_FILE = DEFAULT_PROJECT_ENV_FILE
 
 
 def load_env(env_file: Path | None = None) -> None:
     """Load environment variables from a .env file if python-dotenv is installed."""
-    path = env_file or DEFAULT_ENV_FILE
-    try:
-        from dotenv import load_dotenv
-
-        if path.exists():
-            load_dotenv(path)
-    except ImportError:
-        pass
+    load_optional_dotenv(env_file=env_file, default_env_file=DEFAULT_ENV_FILE)
 
 
 def resolve_data_dir(data_dir: Path | None) -> Path:

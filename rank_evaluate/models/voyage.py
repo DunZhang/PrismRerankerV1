@@ -152,9 +152,7 @@ class VoyageReranker(BaseReranker):
             )
         print(f"  [voyage] stats @ {self._total_calls} calls | {' | '.join(parts)}")
 
-    def _split_batches(
-        self, query: str, documents: list[str]
-    ) -> list[list[int]]:
+    def _split_batches(self, query: str, documents: list[str]) -> list[list[int]]:
         """Split document indices into batches respecting token limits.
 
         Each batch stays under both _MAX_DOCS_PER_CALL and
@@ -219,8 +217,7 @@ class VoyageReranker(BaseReranker):
                 self._log_stats()
 
                 return [
-                    (item.index, float(item.relevance_score))
-                    for item in result.results
+                    (item.index, float(item.relevance_score)) for item in result.results
                 ]
             except Exception as e:
                 last_err = e
@@ -246,9 +243,7 @@ class VoyageReranker(BaseReranker):
         for batch_indices in batches:
             slot_idx, client, limiter = self._pick_slot()
             batch_docs = [documents[i] for i in batch_indices]
-            results = self._rerank_batch(
-                query, batch_docs, slot_idx, client, limiter
-            )
+            results = self._rerank_batch(query, batch_docs, slot_idx, client, limiter)
             for local_idx, score in results:
                 scores[batch_indices[local_idx]] = score
 

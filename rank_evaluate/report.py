@@ -24,7 +24,9 @@ def save_results(
     """Write or update one model column in the xlsx summary."""
     table = _load_existing_table(output_path)
     table.setdefault(model_name, {})
-    table[model_name].update({dataset: float(score) for dataset, score in results.items()})
+    table[model_name].update(
+        {dataset: float(score) for dataset, score in results.items()}
+    )
 
     workbook = Workbook()
     worksheet = workbook.active
@@ -90,9 +92,15 @@ def _write_table(worksheet, table: Mapping[str, Mapping[str, float]]) -> None:
     average_row = len(dataset_names) + 2
     worksheet.cell(row=average_row, column=1, value=AVERAGE_LABEL)
     for column, model_name in enumerate(model_names, start=2):
-        values = [table[model_name][dataset] for dataset in dataset_names if dataset in table[model_name]]
+        values = [
+            table[model_name][dataset]
+            for dataset in dataset_names
+            if dataset in table[model_name]
+        ]
         if values:
-            worksheet.cell(row=average_row, column=column, value=round(mean_score(values), 6))
+            worksheet.cell(
+                row=average_row, column=column, value=round(mean_score(values), 6)
+            )
 
 
 def _format_sheet(worksheet) -> None:

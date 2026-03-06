@@ -24,7 +24,9 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .scorer import SUPPORTED_MODELS, VoyageScorer
+from shared.env import DEFAULT_PROJECT_ENV_FILE, load_optional_dotenv
+
+from .scorer import SUPPORTED_MODELS, create_voyage_scorer
 
 log = logging.getLogger("teacher_scores")
 
@@ -35,18 +37,6 @@ def _setup_logging(verbose: bool = False) -> None:
     fmt = "%(asctime)s | %(levelname)-5s | %(message)s"
     datefmt = "%H:%M:%S"
     logging.basicConfig(level=level, format=fmt, datefmt=datefmt, stream=sys.stderr)
-
-
-def _load_env(env_file: Path | None) -> None:
-    """Load environment variables from a .env file."""
-    path = env_file or Path(__file__).parent.parent / ".env"
-    try:
-        from dotenv import load_dotenv
-
-        if path.exists():
-            load_dotenv(path)
-    except ImportError:
-        pass
 
 
 def _compute_row_hash(row: dict) -> str:
@@ -133,7 +123,10 @@ def process(
         model_name: User-facing model identifier.
         env_file: Optional .env file for API keys.
     """
-    _load_env(env_file)
+    load_optional_dotenv(
+        env_file=env_file,
+        default_env_file=DEFAULT_PROJECT_ENV_FILE,
+    )
 
     pos_key = f"{model_name}_pos_scores"
     neg_key = f"{model_name}_neg_scores"
@@ -163,7 +156,7 @@ def process(
     log.info("Estimated remaining: ~%d rows", max(remaining_est, 0))
     log.info("-" * 60)
 
-    scorer = VoyageScorer(model_name)
+    scorer = create_voyage_scorer(model_name)
 
     try:
         with (
@@ -215,7 +208,7 @@ def process(
 
                 t_call = time.monotonic()
                 try:
-                    scores = scorer.score(query, all_docs)
+                    scores = scorer.rerank(query, all_docs)
                 except Exception as e:
                     skipped_err += 1
                     log.warning(

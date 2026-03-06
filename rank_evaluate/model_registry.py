@@ -19,9 +19,9 @@ class ModelDefinition:
     aliases: tuple[str, ...] = ()
 
 
-def list_supported_models() -> list[ModelDefinition]:
+def list_supported_models(backend: str | None = None) -> list[ModelDefinition]:
     """Return supported models in CLI display order."""
-    return [
+    definitions = [
         ModelDefinition(
             name="voyage-rerank-2-lite",
             description="Voyage AI rerank-2-lite API",
@@ -83,6 +83,9 @@ def list_supported_models() -> list[ModelDefinition]:
             requires_model_path=True,
         ),
     ]
+    if backend is None:
+        return definitions
+    return [definition for definition in definitions if definition.backend == backend]
 
 
 def supported_model_names(include_aliases: bool = False) -> list[str]:
@@ -99,11 +102,11 @@ def supported_models_help() -> str:
     """Render a compact help string for the CLI."""
     lines = ["Supported models:"]
     for definition in list_supported_models():
-        model_path_note = " (requires --model_path)" if definition.requires_model_path else ""
+        model_path_note = (
+            " (requires --model_path)" if definition.requires_model_path else ""
+        )
         alias_note = (
-            f" [aliases: {', '.join(definition.aliases)}]"
-            if definition.aliases
-            else ""
+            f" [aliases: {', '.join(definition.aliases)}]" if definition.aliases else ""
         )
         lines.append(
             f"  {definition.name:<24} {definition.description}{model_path_note}{alias_note}"
@@ -117,9 +120,7 @@ def get_model_definition(model_name: str) -> ModelDefinition:
     for definition in list_supported_models():
         if normalized == definition.name or normalized in definition.aliases:
             return definition
-    raise ValueError(
-        f"Unknown model: {model_name!r}\n{supported_models_help()}"
-    )
+    raise ValueError(f"Unknown model: {model_name!r}\n{supported_models_help()}")
 
 
 def build_model(model_name: str, model_path: Path | None = None) -> BaseReranker:
@@ -165,7 +166,7 @@ def build_model(model_name: str, model_path: Path | None = None) -> BaseReranker
         return QwenVLLMReranker(model_id=model_id)
 
     if definition.name == "prism-reranker-0.6b-vllm":
-        from train.constants import PROMPT_TEMPLATE
+        from shared.prompts import render_raw_prompt
 
         from .models.qwen_vllm import QwenVLLMReranker
 
@@ -173,9 +174,7 @@ def build_model(model_name: str, model_path: Path | None = None) -> BaseReranker
             raise ValueError(f"{definition.name} requires --model_path.")
         return QwenVLLMReranker(
             model_id=str(model_path),
-            prompt_template=PROMPT_TEMPLATE,
+            prompt_template=render_raw_prompt,
         )
 
-    raise ValueError(
-        f"Unsupported model configuration for {definition.name!r}."
-    )
+    raise ValueError(f"Unsupported model configuration for {definition.name!r}.")

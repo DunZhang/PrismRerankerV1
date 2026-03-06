@@ -18,14 +18,13 @@ Or pass ``--model_path`` to load from a local directory.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
+
+from shared.prompts import DEFAULT_EVAL_INSTRUCTION, SUFFIX, build_chat_messages
 
 from .base import BaseReranker
 
 _DEFAULT_MODEL_ID = "Qwen/Qwen3-Reranker-0.6B"
-_DEFAULT_INSTRUCTION = (
-    "Given a web search query, retrieve relevant passages that answer the query"
-)
-_SUFFIX = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
 
 
 class QwenVLLMReranker(BaseReranker):
@@ -41,10 +40,10 @@ class QwenVLLMReranker(BaseReranker):
     def __init__(
         self,
         model_id: str = _DEFAULT_MODEL_ID,
-        instruction: str = _DEFAULT_INSTRUCTION,
+        instruction: str = DEFAULT_EVAL_INSTRUCTION,
         max_length: int = 8192,
         gpu_memory_utilization: float = 0.45,
-        prompt_template: str | None = None,
+        prompt_template: Callable[[str, str], str] | None = None,
     ) -> None:
         import torch
         from transformers import AutoTokenizer
@@ -65,7 +64,7 @@ class QwenVLLMReranker(BaseReranker):
             gpu_memory_utilization=gpu_memory_utilization,
         )
 
-        self._suffix_tokens = self._tokenizer.encode(_SUFFIX, add_special_tokens=False)
+        self._suffix_tokens = self._tokenizer.encode(SUFFIX, add_special_tokens=False)
         self._true_token = self._tokenizer("yes", add_special_tokens=False).input_ids[0]
         self._false_token = self._tokenizer("no", add_special_tokens=False).input_ids[0]
 
@@ -92,7 +91,7 @@ class QwenVLLMReranker(BaseReranker):
         if self._prompt_template is not None:
             prompts = []
             for doc in documents:
-                raw = self._prompt_template.format(query=query, doc=doc)
+                raw = self._prompt_template(query, doc)
                 ids = self._tokenizer.encode(raw, add_special_tokens=False)
                 ids = ids[: self._max_length]
                 prompts.append(TokensPrompt(prompt_token_ids=ids))
@@ -100,24 +99,7 @@ class QwenVLLMReranker(BaseReranker):
 
         # Default: build via chat template.
         messages_list = [
-            [
-                {
-                    "role": "system",
-                    "content": (
-                        "Judge whether the Document meets the requirements "
-                        "based on the Query and the Instruct provided. "
-                        'Note that the answer can only be "yes" or "no".'
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"<Instruct>: {self._instruction}\n\n"
-                        f"<Query>: {query}\n\n"
-                        f"<Document>: {doc}"
-                    ),
-                },
-            ]
+            build_chat_messages(query, doc, instruction=self._instruction)
             for doc in documents
         ]
 
