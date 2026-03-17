@@ -22,10 +22,11 @@ lora:
   use_rslora: false
 
 data:
-  train_file: "/mnt/data/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_train_filtered.jsonl"
-  dev_file: "/mnt/data/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_dev_filtered.jsonl"
+  train_file: "/mnt/data/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_all_filtered.jsonl"
   train_samples: null  # null 表示全量，设为整数则随机采样 N 条
-  eval_samples: null  # null 表示 dev 全量评估
+  dev_dir: "/mnt/data/PrismRerankerV1Data/dev/"  # 目录下所有 .jsonl 文件参与评估
+  eval_samples: 3  # 每个评估文件最多 N 条，null 表示全量
+  eval_files: 1
   num_workers: 2
   pin_memory: true
 
@@ -33,7 +34,7 @@ training:
   num_epochs: 1
   learning_rate: 1.0e-5
   weight_decay: 0.01
-  warmup_steps: 100
+  warmup_steps: 200
   lr_scheduler: "cosine"  # cosine | linear
   grad_accum_steps: 4
   micro_batch_size: 8  # 每次 forward 的序列数，减小可省显存
@@ -41,18 +42,19 @@ training:
   seed: 42
 
 loss:
-  alpha_rank: 0.8
-  beta_list: 1.0
-  gamma_point: 0.5
+  alpha_rank: 0
+  beta_list: 0
+  gamma_point: 50
   temperature: 1.5
   hard_neg_scale: 3.0
 
 evaluation:
-  interval_samples: 1000  # 按全局 seen samples 触发 dev MRR
+  interval_samples: 400  # 按全局 seen samples 触发 dev MRR
+  num_neg: 30  # 评估时取前 N 个负例，null 表示全部
 
 output:
-  dir: "/mnt/data/train_output/test1"
-  run_name: "test1"
+  dir: "/mnt/data/train_output/test1_baseline"
+  run_name: "test1_baseline"
   save_every_eval: true  # 每次评估都保存 checkpoint 到 samples-{N}/
   save_last_checkpoint: false  # 训练结束后额外保存 last/
 

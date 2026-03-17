@@ -18,9 +18,8 @@ Or pass ``--model_path`` to load from a local directory.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 
-from shared.prompts import DEFAULT_EVAL_INSTRUCTION, SUFFIX, build_chat_messages
+from shared.prompts import DEFAULT_EVAL_INSTRUCTION, render_raw_prompt
 
 from .base import BaseReranker
 
@@ -42,8 +41,7 @@ class QwenVLLMReranker(BaseReranker):
         model_id: str = _DEFAULT_MODEL_ID,
         instruction: str = DEFAULT_EVAL_INSTRUCTION,
         max_length: int = 8192,
-        gpu_memory_utilization: float = 0.45,
-        prompt_template: Callable[[str, str], str] | None = None,
+        gpu_memory_utilization: float = 0.9,
     ) -> None:
         import torch
         from transformers import AutoTokenizer
@@ -64,7 +62,6 @@ class QwenVLLMReranker(BaseReranker):
             gpu_memory_utilization=gpu_memory_utilization,
         )
 
-        self._suffix_tokens = self._tokenizer.encode(SUFFIX, add_special_tokens=False)
         self._true_token = self._tokenizer("yes", add_special_tokens=False).input_ids[0]
         self._false_token = self._tokenizer("no", add_special_tokens=False).input_ids[0]
 
@@ -77,7 +74,6 @@ class QwenVLLMReranker(BaseReranker):
 
         self._instruction = instruction
         self._max_length = max_length
-        self._prompt_template = prompt_template
         print(
             f"[qwen-vllm] Model loaded. tp={tp_size}, "
             f"yes_id={self._true_token}, no_id={self._false_token}"
@@ -87,33 +83,12 @@ class QwenVLLMReranker(BaseReranker):
         """Build tokenised prompts for all (query, doc) pairs."""
         from vllm.inputs.data import TokensPrompt
 
-        # Raw template mode: tokenize the pre-formatted prompt directly.
-        if self._prompt_template is not None:
-            prompts = []
-            for doc in documents:
-                raw = self._prompt_template(query, doc)
-                ids = self._tokenizer.encode(raw, add_special_tokens=False)
-                ids = ids[: self._max_length]
-                prompts.append(TokensPrompt(prompt_token_ids=ids))
-            return prompts  # type: ignore[return-value]
-
-        # Default: build via chat template.
-        messages_list = [
-            build_chat_messages(query, doc, instruction=self._instruction)
-            for doc in documents
-        ]
-
-        body_limit = self._max_length - len(self._suffix_tokens)
-        token_ids_list: list[list[int]] = self._tokenizer.apply_chat_template(
-            messages_list,
-            tokenize=True,
-            add_generation_prompt=False,
-            enable_thinking=False,
-        )
-        prompts = [
-            TokensPrompt(prompt_token_ids=ids[:body_limit] + self._suffix_tokens)
-            for ids in token_ids_list
-        ]
+        prompts = []
+        for doc in documents:
+            raw = render_raw_prompt(query, doc, instruction=self._instruction)
+            ids = self._tokenizer.encode(raw, add_special_tokens=False)
+            ids = ids[: self._max_length]
+            prompts.append(TokensPrompt(prompt_token_ids=ids))
         return prompts  # type: ignore[return-value]
 
     def rerank(

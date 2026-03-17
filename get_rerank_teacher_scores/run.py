@@ -6,7 +6,8 @@ Usage:
       --save_path /path/to/output.jsonl \\
       --model_name voyage-rerank-2
 
- uv run python -m get_rerank_teacher_scores  --read_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2.jsonl --save_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5.jsonl  --model_name voyage-rerank-2.5
+ uv run python -m get_rerank_teacher_scores  --read_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed.jsonl --save_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed-T2.5.jsonl  --model_name voyage-rerank-2.5     --target_doc_field web_search_topk_docs
+
 Supported model names:
   voyage-rerank-2          Voyage AI rerank-2
   voyage-rerank-2-lite     Voyage AI rerank-2-lite
@@ -53,38 +54,25 @@ def _compute_row_hash(row: dict) -> str:
     return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
-def _load_checkpoint(ckpt_path: Path, save_path: Path) -> set[str]:
-    """Rebuild checkpoint from output file, then merge with ckpt file.
-
-    The output file is the source of truth — any row present there is
-    truly done.  The ckpt file is an optimistic log that may contain
-    hashes for rows whose output was never flushed (interrupted between
-    ckpt write and output write).  By rebuilding from the output first,
-    we guarantee no data is silently skipped on restart.
-    """
+def _load_done_hashes(save_path: Path, score_keys: list[str]) -> set[str]:
+    """Read save_path and return hashes of rows that already have all score_keys."""
     done: set[str] = set()
-
-    # Rebuild from output file (source of truth)
-    if save_path.exists() and save_path.stat().st_size > 0:
-        size_mb = save_path.stat().st_size / (1024 * 1024)
-        log.info("Rebuilding checkpoint from output (%.1f MB)...", size_mb)
-        with open(save_path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
+    if not save_path.exists() or save_path.stat().st_size == 0:
+        return done
+    size_mb = save_path.stat().st_size / (1024 * 1024)
+    log.info("Scanning output file (%.1f MB) for completed rows...", size_mb)
+    with open(save_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+                if all(k in row for k in score_keys):
                     done.add(_compute_row_hash(row))
-                except (json.JSONDecodeError, KeyError):
-                    continue
-        log.info("Checkpoint rebuilt: %d rows already scored", len(done))
-
-    # Rewrite ckpt file to match actual output
-    with open(ckpt_path, "w", encoding="utf-8") as f:
-        for h in sorted(done):
-            f.write(h + "\n")
-
+            except (json.JSONDecodeError, KeyError):
+                continue
+    log.info("Found %d already-scored rows", len(done))
     return done
 
 
@@ -114,6 +102,7 @@ def process(
     save_path: Path,
     model_name: str,
     env_file: Path | None = None,
+    target_doc_field: str | None = None,
 ) -> None:
     """Score every row in *read_path* and write results to *save_path*.
 
@@ -122,19 +111,26 @@ def process(
         save_path: Output JSONL (appended incrementally).
         model_name: User-facing model identifier.
         env_file: Optional .env file for API keys.
+        target_doc_field: If set, score ``row[target_doc_field]`` (a list[str])
+            instead of pos_list+neg_list.  Output key becomes
+            ``{model_name}_{target_doc_field}_scores``.
     """
     load_optional_dotenv(
         env_file=env_file,
         default_env_file=DEFAULT_PROJECT_ENV_FILE,
     )
 
-    pos_key = f"{model_name}_pos_scores"
-    neg_key = f"{model_name}_neg_scores"
+    if target_doc_field is None:
+        pos_key = f"{model_name}_pos_scores"
+        neg_key = f"{model_name}_neg_scores"
+        score_keys = [pos_key, neg_key]
+    else:
+        custom_key = f"{model_name}_{target_doc_field}_scores"
+        score_keys = [custom_key]
 
-    # Checkpoint file lives next to save_path
-    ckpt_path = save_path.parent / f"{save_path.name}.ckpt"
     save_path.parent.mkdir(parents=True, exist_ok=True)
-    done_hashes = _load_checkpoint(ckpt_path, save_path)
+    done_hashes = _load_done_hashes(save_path, score_keys)
+    missing_field_warned = False
 
     file_size_mb = read_path.stat().st_size / (1024 * 1024)
     log.info("Counting lines in %.0f MB file...", file_size_mb)
@@ -151,6 +147,10 @@ def process(
     log.info("Input:      %s", read_path)
     log.info("Output:     %s", save_path)
     log.info("Model:      %s", model_name)
+    log.info(
+        "Target:     %s",
+        target_doc_field if target_doc_field else "pos_list + neg_list",
+    )
     log.info("Total rows: %d, checkpoint: %d done", total, len(done_hashes))
     remaining_est = total - len(done_hashes)
     log.info("Estimated remaining: ~%d rows", max(remaining_est, 0))
@@ -162,7 +162,6 @@ def process(
         with (
             open(read_path, encoding="utf-8") as fin,
             open(save_path, "a", encoding="utf-8") as fout,
-            open(ckpt_path, "a", encoding="utf-8") as fckpt,
         ):
             pbar = tqdm(
                 fin,
@@ -200,15 +199,35 @@ def process(
                     continue
 
                 query: str = row["query"]
-                pos_list: list[str] = row["pos_list"]
-                neg_list: list[str] = row["neg_list"]
-                all_docs = pos_list + neg_list
-                n_pos = len(pos_list)
-                n_docs = len(all_docs)
+
+                if target_doc_field is None:
+                    pos_list: list[str] = row["pos_list"]
+                    neg_list: list[str] = row["neg_list"]
+                    docs = pos_list + neg_list
+                    n_pos = len(pos_list)
+                else:
+                    if target_doc_field not in row:
+                        if not missing_field_warned:
+                            log.warning(
+                                "Field %r missing from row (query=%r...) — skipping."
+                                " (further warnings suppressed)",
+                                target_doc_field,
+                                query[:50],
+                            )
+                            missing_field_warned = True
+                        skipped_err += 1
+                        pbar.set_postfix_str(
+                            f"ok={processed} skip={already_done} err={skipped_err}"
+                        )
+                        continue
+                    docs = row[target_doc_field]
+                    n_pos = 0
+
+                n_docs = len(docs)
 
                 t_call = time.monotonic()
                 try:
-                    scores = scorer.rerank(query, all_docs)
+                    scores = scorer.rerank(query, docs)
                 except Exception as e:
                     skipped_err += 1
                     log.warning(
@@ -223,17 +242,14 @@ def process(
                     continue
                 call_ms = (time.monotonic() - t_call) * 1000
 
-                row[pos_key] = scores[:n_pos]
-                row[neg_key] = scores[n_pos:]
+                if target_doc_field is None:
+                    row[pos_key] = scores[:n_pos]
+                    row[neg_key] = scores[n_pos:]
+                else:
+                    row[custom_key] = scores
 
-                # Write result first, then checkpoint.  If Ctrl+C hits
-                # in between, the restart logic in _load_checkpoint()
-                # rebuilds from the output file, so no data is lost or
-                # duplicated.
                 fout.write(json.dumps(row, ensure_ascii=False) + "\n")
                 fout.flush()
-                fckpt.write(row_hash + "\n")
-                fckpt.flush()
 
                 done_hashes.add(row_hash)
                 processed += 1
@@ -308,6 +324,15 @@ def main() -> None:
         help="Path to .env file for API keys (default: .env in project root).",
     )
     parser.add_argument(
+        "--target_doc_field",
+        default=None,
+        help=(
+            "Row field containing docs to score instead of pos_list+neg_list. "
+            "Output key becomes {model_name}_{target_doc_field}_scores. "
+            "Example: --target_doc_field web_search_topk_docs"
+        ),
+    )
+    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
@@ -326,6 +351,7 @@ def main() -> None:
         save_path=args.save_path,
         model_name=args.model_name,
         env_file=args.env_file,
+        target_doc_field=args.target_doc_field,
     )
 
 

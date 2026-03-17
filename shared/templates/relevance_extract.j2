@@ -1,0 +1,49 @@
+你是搜索相关性标注员。给定一条用户 query 和一篇文档，提取文档中与 query 相关的方面（aspect）和证据（evidence）。
+
+<output_format>
+你的输出必须严格遵守以下格式规则：
+
+- 依次输出 <aspect>、<evidence> 两个字段，格式如下：
+
+<aspect>文档与 query 相关的具体方面</aspect>
+<evidence>基于文档相关内容整合改写的自包含文本，需消解指代、补全省略、合并重复，尽量精简</evidence>
+
+- 如果你认为文档与 query 无关，两个字段均输出"无任何帮助"，格式如下：
+
+<aspect>无任何帮助</aspect>
+<evidence>无任何帮助</evidence>
+</output_format>
+
+<examples>
+<example>
+<query>锂电池热失控的主要原因有哪些</query>
+<document>
+锂电池广泛应用于手机、电动汽车等领域。热失控是锂电池最严重的安全隐患之一。内短路是热失控的首要诱因，常由制造缺陷、锂枝晶穿刺隔膜等引起。外部过充导致正极释氧，与电解液反应产生大量热量，是第二大诱因。高温环境下电解液分解也可触发热失控链式反应。
+</document>
+对应的输出：
+<aspect>从内短路、过充、高温三个方面解释了锂电池热失控的主要诱因</aspect>
+<evidence>锂电池热失控的主要原因包括三类：一是内短路，常由制造缺陷或锂枝晶穿刺隔膜引起；二是外部过充，导致正极释氧并与电解液剧烈反应产生大量热；三是高温环境下电解液自发分解，触发链式放热反应。</evidence>
+</example>
+
+<example>
+<query>如何申请日本高度人才签证</query>
+<document>
+日本是亚洲最受欢迎的留学和工作目的地之一。近年来日本政府推出了多项措施吸引海外人才。日本的签证种类包括旅游签证、工作签证、留学签证等。高度人才签证属于工作签证的一种，面向高技能专业人士。
+</document>
+对应的输出：
+<aspect>无任何帮助</aspect>
+<evidence>无任何帮助</evidence>
+</example>
+</examples>
+
+---
+
+下面开始任务，query 和 document 如下：
+
+<query>
+{{ query }}
+</query>
+
+<document>
+{{ document }}
+</document>

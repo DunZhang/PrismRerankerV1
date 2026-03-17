@@ -41,6 +41,7 @@ def merge_and_save(
 if __name__ == "__main__":
     merge_and_save(
         base_model_path="/mnt/data/public_models/Qwen3-Reranker-0.6B",
-        adapter_path=str("/mnt/data/train_output/test1/samples-10000"),
-        output_path=str("/mnt/data/train_output/test1/samples-10000_megred_lora"),
+        adapter_path="/mnt/data/train_output/test1_baseline/samples-8000/",
+        # output_path="/mnt/data/train_output/test1_baseline/samples-400_megred_lora",
+         output_path="/root/samples-8000_megred_lora",
     )

@@ -82,6 +82,11 @@ def list_supported_models(backend: str | None = None) -> list[ModelDefinition]:
             backend="vllm",
             requires_model_path=True,
         ),
+        ModelDefinition(
+            name="zerank-2",
+            description="ZeRank-2 CrossEncoder via sentence-transformers (BF16)",
+            backend="sentence-transformers",
+        ),
     ]
     if backend is None:
         return definitions
@@ -166,7 +171,7 @@ def build_model(model_name: str, model_path: Path | None = None) -> BaseReranker
         return QwenVLLMReranker(model_id=model_id)
 
     if definition.name == "prism-reranker-0.6b-vllm":
-        from shared.prompts import render_raw_prompt
+        from shared.prompts import TRAINING_INSTRUCTION
 
         from .models.qwen_vllm import QwenVLLMReranker
 
@@ -174,7 +179,14 @@ def build_model(model_name: str, model_path: Path | None = None) -> BaseReranker
             raise ValueError(f"{definition.name} requires --model_path.")
         return QwenVLLMReranker(
             model_id=str(model_path),
-            prompt_template=render_raw_prompt,
+            instruction=TRAINING_INSTRUCTION,
         )
+
+    if definition.name == "zerank-2":
+        from .models.zerank import ZeRankReranker
+
+        if model_path is not None:
+            return ZeRankReranker(model_id=str(model_path))
+        return ZeRankReranker()
 
     raise ValueError(f"Unsupported model configuration for {definition.name!r}.")

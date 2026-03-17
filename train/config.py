@@ -38,9 +38,10 @@ class LoraConfig:
 @dataclass
 class DataConfig:
     train_file: str = ""
-    dev_file: str = ""
+    dev_dir: str = ""
     train_samples: int | None = None
     eval_samples: int | None = 1000
+    eval_files: int | None = None
     num_workers: int = 0
     pin_memory: bool = True
 
@@ -70,6 +71,7 @@ class LossConfig:
 @dataclass
 class EvaluationConfig:
     interval_samples: int = 5000
+    num_neg: int | None = None
 
 
 @dataclass
@@ -112,7 +114,7 @@ LEGACY_KEY_MAP: dict[str, tuple[str, str]] = {
     "lora_target_modules": ("lora", "target_modules"),
     "use_rslora": ("lora", "use_rslora"),
     "train_file": ("data", "train_file"),
-    "dev_file": ("data", "dev_file"),
+    "dev_dir": ("data", "dev_dir"),
     "train_samples": ("data", "train_samples"),
     "eval_samples": ("data", "eval_samples"),
     "num_workers": ("data", "num_workers"),
@@ -131,6 +133,7 @@ LEGACY_KEY_MAP: dict[str, tuple[str, str]] = {
     "temperature": ("loss", "temperature"),
     "hard_neg_scale": ("loss", "hard_neg_scale"),
     "eval_interval": ("evaluation", "interval_samples"),
+    "num_neg": ("evaluation", "num_neg"),
     "output_dir": ("output", "dir"),
     "run_name": ("output", "run_name"),
     "save_last_checkpoint": ("output", "save_last_checkpoint"),
@@ -236,8 +239,8 @@ class TrainConfig:
             raise ValueError("model.path is required.")
         if not self.data.train_file:
             raise ValueError("data.train_file is required.")
-        if not self.data.dev_file:
-            raise ValueError("data.dev_file is required.")
+        if not self.data.dev_dir:
+            raise ValueError("data.dev_dir is required.")
         if self.model.dtype not in ALLOWED_DTYPES:
             raise ValueError(f"Unsupported model.dtype: {self.model.dtype}")
         if self.training.lr_scheduler not in ALLOWED_SCHEDULERS:
@@ -258,6 +261,8 @@ class TrainConfig:
             raise ValueError("data.train_samples must be > 0 or null.")
         if self.data.eval_samples is not None and self.data.eval_samples <= 0:
             raise ValueError("data.eval_samples must be > 0 or null.")
+        if self.data.eval_files is not None and self.data.eval_files <= 0:
+            raise ValueError("data.eval_files must be > 0 or null.")
         if self.training.num_epochs <= 0:
             raise ValueError("training.num_epochs must be > 0.")
         if self.training.learning_rate <= 0:

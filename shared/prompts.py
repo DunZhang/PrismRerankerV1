@@ -20,7 +20,6 @@ _env = Environment(
 )
 
 _raw_template = _env.get_template("reranker_raw.j2")
-_chat_template = _env.get_template("reranker_chat.j2")
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -30,8 +29,6 @@ SYSTEM_PROMPT: str = (
     "the Query and the Instruct provided. Note that the answer "
     'can only be "yes" or "no".'
 )
-
-SUFFIX: str = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
 
 DEFAULT_EVAL_INSTRUCTION: str = (
     "Given a web search query, retrieve relevant passages that answer the query"
@@ -67,44 +64,9 @@ def render_raw_prompt(
     )
 
 
-def render_chat_user_content(
-    query: str,
-    doc: str,
-    instruction: str = DEFAULT_EVAL_INSTRUCTION,
-) -> str:
-    """Render the user-role content for chat-template-based models."""
-    return _chat_template.render(
-        instruction=instruction,
-        query=query,
-        doc=doc,
-    )
-
-
-def build_chat_messages(
-    query: str,
-    doc: str,
-    instruction: str = DEFAULT_EVAL_INSTRUCTION,
-) -> list[dict[str, str]]:
-    """Build the chat-template messages for one reranker prompt."""
-    return [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": render_chat_user_content(
-                query,
-                doc,
-                instruction=instruction,
-            ),
-        },
-    ]
-
-
 __all__ = [
     "SYSTEM_PROMPT",
-    "SUFFIX",
     "DEFAULT_EVAL_INSTRUCTION",
     "TRAINING_INSTRUCTION",
     "render_raw_prompt",
-    "render_chat_user_content",
-    "build_chat_messages",
 ]

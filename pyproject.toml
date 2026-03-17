@@ -25,6 +25,11 @@ dependencies = [
     "bitsandbytes>=0.49.2",
     "transformers>=4.52.0,<5.0",
     "jinja2>=3.1.0",
+    "openai>=2.24.0",
+    "datasets>=4.6.1",
+    "tavily-python",
+    "exa-py>=2.8.1",
+    "zai-sdk>=0.2.2",
 ]
 
 [[tool.uv.index]]

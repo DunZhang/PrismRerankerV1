@@ -9,18 +9,22 @@ from pathlib import Path
 from typing import Any, TextIO
 from zoneinfo import ZoneInfo
 
+import openpyxl
 import torch
 import torch.nn.functional as F
 import wandb
 import yaml
 from accelerate import Accelerator
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from accelerate.utils import set_seed
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import get_scheduler
 
 from train.config import TrainConfig
-from train.data import RerankerDataset, make_collate_fn
+from train.data import RerankerDataset, load_eval_datasets, make_collate_fn
 from train.modeling import extract_yes_no_logits, load_model_and_tokenizer
 
 BEIJING_TZ = ZoneInfo("Asia/Shanghai")
@@ -134,10 +138,10 @@ class TrainLogger:
             f"epoch={epoch}",
             f"samples={samples_seen}",
             f"lr={learning_rate:.2e}",
-            f"loss={losses['loss_total']:.6f}",
-            f"rank={losses['loss_rank']:.6f}",
-            f"list={losses['loss_listwise']:.6f}",
-            f"point={losses['loss_pointwise']:.6f}",
+            f"weighted-loss-backward={losses['loss_total']:.6f}",
+            f"raw_rank={losses['loss_rank']:.6f}",
+            f"raw_list={losses['loss_listwise']:.6f}",
+            f"raw_point={losses['loss_pointwise']:.6f}",
         ]
         if grad_norm is not None:
             parts.append(f"grad_norm={grad_norm:.4f}")
@@ -250,6 +254,13 @@ def evaluate(
     micro_batch_size: int = 2,
 ) -> float:
     model.eval()
+
+    # Disable gradient checkpointing during eval for faster forward pass
+    unwrapped = accelerator.unwrap_model(model)
+    gc_enabled = getattr(unwrapped, "is_gradient_checkpointing", False)
+    if gc_enabled:
+        unwrapped.gradient_checkpointing_disable()
+
     reciprocal_ranks: list[float] = []
 
     for batch in tqdm(
@@ -271,8 +282,11 @@ def evaluate(
 
         num_positives: int = batch["num_positives"]
         best_pos_score = scores[:num_positives].max().item()
-        rank = 1 + sum(s.item() >= best_pos_score for s in scores[num_positives:])
+        rank = 1 + (scores[num_positives:] >= best_pos_score).sum().item()
         reciprocal_ranks.append(1.0 / rank)
+
+    if gc_enabled:
+        unwrapped.gradient_checkpointing_enable()
 
     rr_tensor = torch.tensor(
         reciprocal_ranks,
@@ -298,6 +312,106 @@ def save_model_bundle(
     with open(save_dir / "train_config.resolved.yaml", "w", encoding="utf-8") as handle:
         yaml.safe_dump(cfg.to_dict(), handle, sort_keys=False, allow_unicode=False)
     accelerator.print(f"Saved checkpoint to {save_dir}")
+
+
+def save_eval_results_xlsx(
+    output_path: Path,
+    column_name: str,
+    per_file_mrr: dict[str, float],
+) -> None:
+    """Append one evaluation column to the xlsx results table.
+
+    Rows = dataset names, columns = evaluation checkpoints (e.g. samples-1000).
+    """
+    table = _load_eval_xlsx(output_path)
+    table[column_name] = dict(per_file_mrr)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Eval MRR"
+
+    col_names = list(table)
+    dataset_names = sorted({ds for scores in table.values() for ds in scores})
+
+    ws.cell(row=1, column=1, value="Dataset")
+    for ci, col in enumerate(col_names, start=2):
+        ws.cell(row=1, column=ci, value=col)
+
+    for ri, ds in enumerate(dataset_names, start=2):
+        ws.cell(row=ri, column=1, value=ds)
+        for ci, col in enumerate(col_names, start=2):
+            score = table[col].get(ds)
+            if score is not None:
+                ws.cell(row=ri, column=ci, value=round(score, 6))
+
+    avg_row = len(dataset_names) + 2
+    ws.cell(row=avg_row, column=1, value="AVERAGE")
+    for ci, col in enumerate(col_names, start=2):
+        vals = [table[col][ds] for ds in dataset_names if ds in table[col]]
+        if vals:
+            ws.cell(row=avg_row, column=ci, value=round(sum(vals) / len(vals), 6))
+
+    _format_eval_sheet(ws)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(output_path)
+
+
+def _load_eval_xlsx(path: Path) -> dict[str, dict[str, float]]:
+    """Load existing evaluation xlsx into column_name -> {dataset: score}."""
+    if not path.exists():
+        return {}
+
+    wb = openpyxl.load_workbook(path)
+    ws = wb.active
+
+    headers = [
+        str(ws.cell(row=1, column=c).value)
+        for c in range(2, ws.max_column + 1)
+        if ws.cell(row=1, column=c).value
+    ]
+    table: dict[str, dict[str, float]] = {h: {} for h in headers}
+    for row in range(2, ws.max_row + 1):
+        ds = ws.cell(row=row, column=1).value
+        if not ds or str(ds) == "AVERAGE":
+            continue
+        for offset, header in enumerate(headers, start=2):
+            val = ws.cell(row=row, column=offset).value
+            if isinstance(val, (int, float)):
+                table[header][str(ds)] = float(val)
+    return table
+
+
+def _format_eval_sheet(ws: Any) -> None:
+    """Apply formatting to the evaluation results sheet."""
+    header_fill = PatternFill(
+        start_color="DCE6F1", end_color="DCE6F1", fill_type="solid"
+    )
+    bold = Font(bold=True)
+
+    for c in range(1, ws.max_column + 1):
+        cell = ws.cell(row=1, column=c)
+        cell.font = bold
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    for row in range(2, ws.max_row + 1):
+        label = ws.cell(row=row, column=1).value
+        if label == "AVERAGE":
+            for c in range(1, ws.max_column + 1):
+                ws.cell(row=row, column=c).font = bold
+            continue
+        ws.cell(row=row, column=1).alignment = Alignment(horizontal="left")
+
+    ws.column_dimensions["A"].width = 40
+    for c in range(2, ws.max_column + 1):
+        ws.column_dimensions[get_column_letter(c)].width = 18
+
+    for row in range(2, ws.max_row + 1):
+        for c in range(2, ws.max_column + 1):
+            cell = ws.cell(row=row, column=c)
+            if isinstance(cell.value, float):
+                cell.number_format = "0.0000"
+                cell.alignment = Alignment(horizontal="center")
 
 
 class RerankerTrainer:
@@ -327,21 +441,26 @@ class RerankerTrainer:
             max_samples=cfg.data.train_samples,
             seed=cfg.training.seed,
         )
-        self.dev_dataset = RerankerDataset(
-            cfg.data.dev_file,
-            max_samples=cfg.data.eval_samples,
-            seed=cfg.training.seed,
-        )
         if not self.train_dataset:
             raise ValueError("Training dataset is empty.")
-        if not self.dev_dataset:
-            raise ValueError("Dev dataset is empty.")
+
+        self.dev_datasets = load_eval_datasets(
+            cfg.data.dev_dir,
+            max_samples=cfg.data.eval_samples,
+            max_files=cfg.data.eval_files,
+            seed=cfg.training.seed,
+            num_neg=cfg.evaluation.num_neg,
+        )
 
         self.accelerator.print(f"Training samples: {len(self.train_dataset)}")
-        self.accelerator.print(f"Dev samples: {len(self.dev_dataset)}")
+        total_dev = sum(len(ds) for ds in self.dev_datasets.values())
+        self.accelerator.print(
+            f"Dev datasets: {len(self.dev_datasets)} files, {total_dev} total samples"
+        )
         if self.logger:
             self.logger.info(f"Training samples loaded: {len(self.train_dataset)}")
-            self.logger.info(f"Dev samples loaded: {len(self.dev_dataset)}")
+            for name, ds in self.dev_datasets.items():
+                self.logger.info(f"Dev dataset '{name}': {len(ds)} samples")
 
         collate_fn = make_collate_fn(self.tokenizer, cfg.model.max_seq_length)
         pin_memory = cfg.data.pin_memory and torch.cuda.is_available()
@@ -354,14 +473,16 @@ class RerankerTrainer:
             pin_memory=pin_memory,
             drop_last=False,
         )
-        self.dev_loader = DataLoader(
-            self.dev_dataset,
-            batch_size=1,
-            shuffle=False,
-            collate_fn=collate_fn,
-            num_workers=cfg.data.num_workers,
-            pin_memory=pin_memory,
-        )
+        self.dev_loaders: dict[str, DataLoader] = {}
+        for name, ds in self.dev_datasets.items():
+            self.dev_loaders[name] = DataLoader(
+                ds,
+                batch_size=1,
+                shuffle=False,
+                collate_fn=collate_fn,
+                num_workers=cfg.data.num_workers,
+                pin_memory=pin_memory,
+            )
 
         self.optimizer = torch.optim.AdamW(
             self.model.parameters(),
@@ -407,19 +528,19 @@ class RerankerTrainer:
             self.logger.info(f"Scheduler steps: {self.total_scheduler_steps}")
             self.logger.info("Training started.")
 
-        (
+        prepared = self.accelerator.prepare(
             self.model,
             self.optimizer,
             self.train_loader,
-            self.dev_loader,
             self.scheduler,
-        ) = self.accelerator.prepare(
-            self.model,
-            self.optimizer,
-            self.train_loader,
-            self.dev_loader,
-            self.scheduler,
+            *self.dev_loaders.values(),
         )
+        self.model = prepared[0]
+        self.optimizer = prepared[1]
+        self.train_loader = prepared[2]
+        self.scheduler = prepared[3]
+        dev_loader_names = list(self.dev_loaders.keys())
+        self.dev_loaders = dict(zip(dev_loader_names, prepared[4:]))
 
         self.model.train()
         self.metrics = MetricTracker()
@@ -549,33 +670,49 @@ class RerankerTrainer:
             self.state.next_eval_at += self.cfg.evaluation.interval_samples
             self._run_evaluation(stage="eval")
 
+    def _evaluate_all(self, stage: str) -> tuple[float, dict[str, float]]:
+        """Evaluate on all dev datasets, return mean MRR."""
+        per_file_mrr: dict[str, float] = {}
+        for name, loader in self.dev_loaders.items():
+            mrr = evaluate(
+                self.model,
+                loader,
+                self.accelerator,
+                micro_batch_size=self.cfg.training.micro_batch_size,
+            )
+            per_file_mrr[name] = mrr
+
+        mean_mrr = sum(per_file_mrr.values()) / len(per_file_mrr)
+        return mean_mrr, per_file_mrr
+
     def _run_evaluation(self, stage: str) -> float:
         self.accelerator.print(
             f"\n[{stage.capitalize()}] samples_seen={self.state.global_samples_seen}"
         )
-        mrr = evaluate(
-            self.model,
-            self.dev_loader,
-            self.accelerator,
-            micro_batch_size=self.cfg.training.micro_batch_size,
-        )
-        is_best = mrr > self.state.best_mrr
+        mean_mrr, per_file_mrr = self._evaluate_all(stage)
+        is_best = mean_mrr > self.state.best_mrr
         if is_best:
-            self.state.best_mrr = mrr
+            self.state.best_mrr = mean_mrr
 
         if self.accelerator.is_main_process:
+            for name, mrr in per_file_mrr.items():
+                self.accelerator.print(
+                    f"  [{stage.capitalize()}] {name}: MRR={mrr:.4f}"
+                )
             self.accelerator.print(
-                f"[{stage.capitalize()}] MRR={mrr:.4f} best={self._current_best():.4f}"
+                f"[{stage.capitalize()}] mean_MRR={mean_mrr:.4f} "
+                f"best={self._current_best():.4f}"
             )
             metric_name = "final_mrr" if stage == "final" else "dev_mrr"
-            self._log_wandb(
-                {
-                    metric_name: mrr,
-                    "best_mrr": self._current_best(),
-                    "samples_seen": self.state.global_samples_seen,
-                },
-                step=self.state.optimizer_steps,
-            )
+            wandb_payload: dict[str, float | int] = {
+                metric_name: mean_mrr,
+                "best_mrr": self._current_best(),
+                "samples_seen": self.state.global_samples_seen,
+            }
+            for name, mrr in per_file_mrr.items():
+                wandb_payload[f"{metric_name}/{name}"] = mrr
+            self._log_wandb(wandb_payload, step=self.state.optimizer_steps)
+
             if is_best:
                 save_model_bundle(
                     self.model,
@@ -596,14 +733,22 @@ class RerankerTrainer:
                 self.logger.log_eval(
                     step=self.state.optimizer_steps,
                     samples_seen=self.state.global_samples_seen,
-                    mrr=mrr,
+                    mrr=mean_mrr,
                     best_mrr=self._current_best(),
                     is_best=is_best,
                     stage=stage,
                 )
+                for name, mrr in per_file_mrr.items():
+                    self.logger.info(f"  [{stage.upper()}] {name}: MRR={mrr:.6f}")
+
+            save_eval_results_xlsx(
+                self.output_dir / "evaluation_result.xlsx",
+                f"samples-{self.state.global_samples_seen}",
+                per_file_mrr,
+            )
 
         self.accelerator.wait_for_everyone()
-        return mrr
+        return mean_mrr
 
     def train(self) -> None:
         for epoch_index in range(self.cfg.training.num_epochs):

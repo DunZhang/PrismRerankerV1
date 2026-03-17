@@ -1,0 +1,56 @@
+{
+  "data_file": "KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed.jsonl",
+  "num_queries": 38675,
+  "models": [
+    "voyage-rerank-2",
+    "voyage-rerank-2.5"
+  ],
+  "pos_scores_stats": {
+    "count": 38675,
+    "mean": 0.781097,
+    "std": 0.123611,
+    "min": 0.250977,
+    "max": 0.974609,
+    "percentiles": {
+      "p5": 0.529297,
+      "p10": 0.595703,
+      "p25": 0.716797,
+      "p50": 0.814453,
+      "p75": 0.873047,
+      "p90": 0.908203,
+      "p95": 0.925781
+    }
+  },
+  "neg_scores_stats": {
+    "count": 270725,
+    "mean": 0.36401,
+    "std": 0.102558,
+    "min": 0.16748,
+    "max": 0.929688,
+    "percentiles": {
+      "p5": 0.236816,
+      "p10": 0.253906,
+      "p25": 0.289062,
+      "p50": 0.341797,
+      "p75": 0.416992,
+      "p90": 0.507812,
+      "p95": 0.568359
+    }
+  },
+  "thresholds": {
+    "irrelevant_below": 0.507812,
+    "relevant_above": 0.5,
+    "description": {
+      "irrelevant_below": "低于此分数的文档与 query 基本无关，可直接丢弃",
+      "relevant_above": "高于此分数的文档大概率与 query 相关，可作为正例"
+    }
+  },
+  "validation": {
+    "neg_below_threshold_ratio": 0.891,
+    "pos_above_threshold_ratio": 0.9644,
+    "description": {
+      "neg_below_threshold_ratio": "负例中低于 relevant_above 的比例（越高越好）",
+      "pos_above_threshold_ratio": "正例中高于 relevant_above 的比例（越高越好）"
+    }
+  }
+}
