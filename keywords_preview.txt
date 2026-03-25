@@ -1,0 +1,1012 @@
+[2] Q: ਦੀਪਿਕਾ ਪਾਦੁਕੋਣ ਕੌਣ ਹੈ?
+     K: ਦੀਪਿਕਾ ਪਾਦੁਕੋਣ
+
+[3] Q: 诺伯里路口在哪里
+     K: 诺伯里 路口 位置
+
+[8] Q: 电脑物理内存多少正常
+     K: 电脑 物理内存 正常容量
+
+[10] Q: 疏肝与眼睛的关系
+     K: 疏肝 眼睛 关系
+
+[11] Q: How did Volkswagen get its diesel cars to misrepresent emissions results only when they were being tested?
+     K: Volkswagen diesel emissions test cheating scandal
+
+[13] Q: 中学生吃牛肉有什么好处
+     K: 中学生 牛肉 营养 好处
+
+[23] Q: What enzyme's absence is characteristic of specific types of viral infections?
+     K: enzyme absence characteristic viral infections
+
+[24] Q: 湿地生态系统
+     K: 湿地 生态系统
+
+[26] Q: Who are the two brothers who founded Pizza Hut and were born in Wichita, Kansas?
+     K: Pizza Hut founders brothers Wichita Kansas born
+
+[28] Q: where is calcium stored within a muscle cell
+     K: calcium storage muscle cell location
+
+[35] Q: what yellow are poisonous toxins
+     K: poisonous toxins yellow
+
+[44] Q: 三七的作用与副作用
+     K: 三七 作用 副作用
+
+[46] Q: 豬毛蒿分佈在哪些地區？
+     K: 豬毛蒿 分佈 地區
+
+[47] Q: 数学广角找次品
+     K: 数学 广角 找次品
+
+[48] Q: 我想咨询一下，68岁的老人，膀胱癌晚期，尿血，消瘦，还能活多久呢
+     K: 膀胱癌 晚期 68岁 尿血 消瘦 生存期 预后
+
+[50] Q: 以花卉命名的城市是哪个城市
+     K: 花卉 命名 城市
+
+[51] Q: in which ocean is the vema seamount
+     K: Vema Seamount ocean location
+
+[52] Q: ACME 9000
+     K: ACME 9000
+
+[53] Q: Convert the following JSON data to an HTML table.
+{
+  "fruit": ["apple", "banana", "orange"],
+  "vegetable": ["potato", "carrot", "onion"]
+}
+     K: JSON 转换 HTML 表格
+
+[67] Q: What happens to broken glass after it's thrown out? Does it just turn into fine grains again? Decomposed?
+     K: broken glass disposal decomposition process
+
+[68] Q: Why it's not possible to clone encrypted contactless smart cards?
+     K: encrypted contactless smart cards cloning impossible
+
+[70] Q: Were Ibn Tufail and Abū Ja'far al-Khāzin both from Iran?
+     K: Ibn Tufail Abū Ja'far al-Khāzin Iran origin
+
+[71] Q: 当尿液离开肾脏时，它进入
+     K: 尿液 离开 肾脏 进入
+
+[74] Q: who is thodoros papadimitriou
+     K: Thodoros Papadimitriou
+
+[76] Q: What does Strategy Analytics say Windows tablets are lacking?
+     K: Strategy Analytics Windows tablets lacking
+
+[79] Q: متى تم اعداد سيد قطب؟
+     K: سيد قطب اعداد تاريخ
+
+[80] Q: what county is bartlesville, ok
+     K: Bartlesville Oklahoma county
+
+[82] Q: 三星note3无线打不开
+     K: 三星note3 无线 打不开
+
+[86] Q: Onko Eldorado oikea kaupunki?
+     K: Eldorado kaupunki
+
+[91] Q: 你的静息心率应该是多少
+     K: 静息心率 正常值 标准
+
+[95] Q: what is the name of lady gouyi's grave
+     K: Lady Gouyi grave name
+
+[96] Q: 男友得了精神分裂症我怀孕了能要吗？我男友前段时间得了精神分裂症，以前爱幻想总觉得有人跟踪他，还有暴力倾向，经过药物治疗后这些情况都没有了，但是现在不爱与人接触，话少，药还没有停，这样正常吗？还有我现在怀孕了，能要吗？
+     K: 精神分裂症 怀孕 胎儿 遗传风险 药物治疗 影响
+
+[101] Q: 肺腺癌用中药六个月开使挺好的现在不舒服检查有发展病
+     K: 肺腺癌 中药 治疗 六个月 病情发展 检查 不适
+
+[105] Q: Who edited the first paper about nuclear fission?
+     K: nuclear fission first paper editor
+
+[107] Q: Is generator replacement associated with an increased rate of ICD lead alerts?
+     K: generator replacement ICD lead alerts increased rate
+
+[117] Q: How would you describe a diet of a species that eats primarily dead organic material?
+     K: species diet primarily dead organic material
+
+[125] Q: plain plastic headbands
+     K: plain plastic headbands
+
+[126] Q: 悦跑圈日签如何显示公里数
+     K: 悦跑圈 日签 显示 公里数
+
+[132] Q: 自动空调可以实现哪些功能
+     K: 自动空调 功能
+
+[135] Q: Why does wind chill exist?
+
+[removed]
+     K: wind chill 原因 存在
+
+[137] Q: 天刀怎么开团
+     K: 天刀 开团 方法
+
+[140] Q: How many provinces are there in Pakistan?
+     K: Pakistan provinces number
+
+[143] Q: What is the study of the differenet varieties of Catalan?
+     K: Catalan varieties study
+
+[149] Q: Apakah hukum penawaran dalam ekonomi?
+     K: hukum penawaran ekonomi
+
+[150] Q: Are Michael Herz and Asghar Farhadi both nationals of the same country ?
+     K: Michael Herz Asghar Farhadi nationality same country
+
+[155] Q: where is bessemer city nc
+     K: Bessemer City NC location
+
+[156] Q: This cattle-breeding region is paired with Schleswig in Germany's northernmost state
+     K: cattle-breeding region Schleswig Germany northernmost state
+
+[157] Q: Kuinka pitkä on Saint Lawrencen joki?
+     K: Saint Lawrence joki pituus
+
+[161] Q: who plays title role in phantom of the opera
+     K: phantom of the opera title role actor
+
+[163] Q: @transactional(readonly = true)的作用
+     K: @transactional readonly true 作用
+
+[166] Q: 瘫痪病人坐飞机程序
+     K: 瘫痪病人 坐飞机 程序 手续
+
+[167] Q: When I'm hungry why do I crave primarily junk food even though it has very little nutritional value?
+     K: hungry crave junk food nutritional value
+
+[169] Q: What word refers to the neck hair of a lion or horse?
+     K: lion horse neck hair word
+
+[170] Q: 海洋生态遭到破坏，我们需要采取哪些措施来恢复？
+     K: 海洋生态 破坏 恢复 措施
+
+[177] Q: 早搏可以喝酒吗
+     K: 早搏 饮酒 影响
+
+[184] Q: when did crater lake become a national park
+     K: Crater Lake national park establishment date
+
+[186] Q: 我怀孕7个月11天今天检查出孩子只有一个肾，会有什么影响
+     K: 怀孕 7个月 单肾 影响 胎儿 检查
+
+[189] Q: 古筝名曲卷珠帘
+     K: 古筝 名曲 卷珠帘
+
+[193] Q: What type of security force guards the 2600 nuclear warheads?
+     K: nuclear warheads security force guards
+
+[198] Q: 新加坡相亲节目
+     K: 新加坡 相亲 节目
+
+[204] Q: this girl is smoking. she's got a man. our chemistry is AMAZING.\nbut i've been cheated on before....and it sux.  is this wrong.
+     K: cheating relationship trust issues chemistry
+
+[206] Q: 电竞游戏画风 精致 独特
+     K: 电竞游戏 画风 精致 独特
+
+[208] Q: Does most gastric cancer occur on the distal side of the endoscopic atrophic border?
+     K: gastric cancer distal endoscopic atrophic border
+
+[209] Q: how many species of plant are in the fitzgerald river national park
+     K: Fitzgerald River National Park plant species count
+
+[211] Q: تداول المنتجات المغزوة إلى الأسواق.
+     K: تداول المنتجات المغزوة الأسواق
+
+[219] Q: 財布
+     K: 財布
+
+[220] Q: 艾滋病通过什么途径传播？
+     K: 艾滋病 传播途径
+
+[229] Q: 现代都市小说创作灵感
+     K: 现代都市小说 创作灵感
+
+[231] Q: Which type of dolphin is most commonly seen in zoos and aquaria?
+     K: bottlenose dolphin zoos aquariums common
+
+[232] Q: 成都万和热水器的售后服务电话
+     K: 成都 万和热水器 售后服务电话
+
+[235] Q: Does aDAR1 enhance HTLV-1 and HTLV-2 replication through inhibition of PKR activity?
+     K: aDAR1 HTLV-1 HTLV-2 replication PKR inhibition
+
+[236] Q: 少儿编程几岁开始学合适
+     K: 少儿编程 几岁 开始 合适
+
+[245] Q: 全国十大美容院排名
+     K: 全国十大美容院 排名
+
+[247] Q: Refine the code below:
+
+def unique_pairs(lst1, lst2):
+    '''
+    Devise a function that accepts two string lists as input. This function should output a tuple with a unique coupling of strings drawn 
+    from both lists. The combined character length of both strings should be either equivalent to or less than the length of the lengthiest string 
+    in either list (ignoring incidences of spaces, string case or other instances of the same string subsequent to the first one). If there exist 
+    several pairs that satisfy the conditions, the function should return the pair constructed using the first string from both lists that fulfills 
+    them. If no set of pairs live up to the conditions, the function should output an empty tuple.
+
+    This function should disregard repeated strings in each list (taking only the first incidence of occurrence into account) and overlook string 
+    case differences.
+
+    Examples
+    unique_pairs(['hi', 'admin'], ['hI', 'Hi']) ➞ ('hi', 'hI')
+    unique_pairs(['biggest', 'word', 'here'], ['here', 'word', 'here', 'project']) ➞ ('biggest', 'field')
+    unique_pairs(['any', 'word'], ['any', 'word', 'word']) ➞ ('any', 'any')
+    unique_pairs(['4'], ['1', '2', '3', '4', '5']) ➞ ('4', '1')
+    unique_pairs(['hello world'], ['hi', ' w', 'or', 'ld']) ➞ ('hello world', 'hi')
+    '''
+     K: unique_pairs function code refine optimization
+
+[248] Q: Is polygenic risk of ischemic stroke associated with cognitive ability?
+     K: polygenic risk ischemic stroke cognitive ability association
+
+[250] Q: باغ ایرانشناسی در جه سالی افتتاح شد؟
+     K: باغ ایرانشناسی سال افتتاح
+
+[251] Q: 《终极三国》里的《我的天》是谁唱的？
+     K: 终极三国 我的天 演唱者
+
+[253] Q: 华为手机屏幕怎么变成黑白显示了
+     K: 华为手机 屏幕 黑白显示 设置
+
+[257] Q: where did the iwo jima leave from in 1962
+     K: Iwo Jima 1962 departure location
+
+[263] Q: Битва за Сталинград
+     K: Сталинград битва
+
+[264] Q: 1994年に起きたノースリッジ地震はどのような被害をもたらしましたか？
+     K: 1994年 ノースリッジ地震 被害
+
+[270] Q: when was the word googol coined
+     K: googol coined when
+
+[276] Q: 如果我们不去除注射器中的气泡会发生什么？
+     K: 注射器 气泡 不去除 后果
+
+[277] Q: 統計ی از بیماری های قلبی
+     K: بیماری های قلبی آمار
+
+[279] Q: salary of meteorologist on tv
+     K: meteorologist TV salary
+
+[284] Q: 请问哪种珠宝形状适合用于生日礼物？
+     K: 珠宝 形状 生日礼物 适合
+
+[288] Q: disaster relief is a policy benefiting
+     K: disaster relief policy benefits
+
+[290] Q: 胰腺癌诊治病案1则
+     K: 胰腺癌 诊治 病案 病例
+
+[291] Q: Finite Element Analysis
+     K: Finite Element Analysis
+
+[294] Q: where is trogir
+     K: Trogir location
+
+[298] Q: when are car deals the best?
+     K: car deals best time
+
+[299] Q: 排名次的函数怎么用
+     K: 排名次 函数 使用方法
+
+[305] Q: 一人之下王也道袍
+     K: 一人之下 王也 道袍
+
+[307] Q: 转换为公吨
+     K: 公吨 转换
+
+[312] Q: Какой диаметр кроны у голубики высокорослой?
+     K: голубика высокорослая диаметр кроны
+
+[313] Q: Kuka johti Irakin joukkoja Irakin sodassa?
+     K: Irakin sodan johtajat Irak joukot
+
+[314] Q: what causes  muscles cramps
+     K: muscle cramps causes
+
+[319] Q: 克罗地亚币50000面值多少人民币
+     K: 克罗地亚币 50000 面值 人民币 兑换
+
+[325] Q: What processes are impacted by the angular momentum content of a star at birth?
+     K: star birth angular momentum processes impact
+
+[332] Q: how many sca are in the usa annually
+     K: SCA USA annual number
+
+[334] Q: Когда интернет-маркетинг начали использовать в России?
+     K: интернет-маркетинг Россия начало использование
+
+[340] Q: 单纯形定义
+     K: 单纯形 定义
+
+[342] Q: 大学四年什么时候入党嘴好
+     K: 大学 入党 时间 最佳
+
+[344] Q: tis maheria tis agapis
+     K: tis maheria tis agapis
+
+[348] Q: చినరావూరు గ్రామ విస్తీర్ణం ఎంత?
+     K: చినరావూరు గ్రామ విస్తీర్ణం
+
+[350] Q: 二氧化硫和碳酸钠反应的化学方程式
+     K: 二氧化硫 碳酸钠 反应 化学方程式
+
+[356] Q: ద్వీపకల్ప పీఠభూమి యొక్క నిర్మితీయ లక్షణాలను వివరించండి.
+     K: ద్వీపకల్ప పీఠభూమి నిర్మితీయ లక్షణాలు
+
+[358] Q: Is vitamin D receptor a novel transcriptional regulator for Axin1?
+     K: vitamin D receptor Axin1 transcriptional regulator
+
+[359] Q: what is the difference between male and female koi?
+     K: male female koi difference
+
+[365] Q: who wrote the best of chris cagle?
+     K: Chris Cagle Best writer
+
+[367] Q: Where was Beirne Lay Jr. born?
+     K: Beirne Lay Jr. born birthplace
+
+[369] Q: where is beaune-la-rolande france
+     K: Beaune-la-Rolande France location
+
+[375] Q: 一瓶酒多少毫升
+     K: 酒 一瓶 毫升
+
+[376] Q: Which English Monarch succeeded William III of Orange?
+     K: William III successor English monarch
+
+[378] Q: 爱旅游的星座
+     K: 星座 旅游 爱好
+
+[379] Q: 最近在量子计算领域取得的突破性进展
+     K: 量子计算 突破性进展 最新成果
+
+[382] Q: 夏家三千金孙晓菁婚礼梦破碎是第几集
+     K: 夏家三千金 孙晓菁 婚礼 梦破碎 第几集
+
+[383] Q: 血小板低
+     K: 血小板低 原因 症状 治疗
+
+[386] Q: 什么是皮诺猫
+     K: 皮诺猫 定义 是什么
+
+[387] Q: What does the term "Early Modern" mean?
+     K: Early Modern term meaning
+
+[393] Q: Name one child from the union of Tony and Joan?
+     K: Tony Joan child name
+
+[396] Q: 尼安德特人基因好处
+     K: 尼安德特人 基因 优势 益处
+
+[406] Q: 带状疱疹10天了还疼
+     K: 带状疱疹 疼痛 10天 持续
+
+[407] Q: In what month was the crash that Dennis Nielsen is most widely known for having participated in the rescue effort for?
+     K: Dennis Nielsen crash rescue effort month
+
+[414] Q: [p˭ s˭] and [pʰ ʰp sʰ] are separate what?
+     K: p˭ s˭ pʰ ʰp sʰ separate
+
+[416] Q: could someone please explain to me the differences between right political parties and left political parties (ex. Fascism and Communism) ?
+     K: right left political parties differences fascism communism
+
+[417] Q: What kind of sound did students seem to prefer?
+     K: students sound preference
+
+[420] Q: 牙疼用什么牙膏效果最好
+     K: 牙疼 牙膏 效果 推荐
+
+[423] Q: who won the civil war union or confederate
+     K: Civil War winner Union Confederate
+
+[426] Q: 康德哲学
+     K: 康德 哲学
+
+[431] Q: how to stop thinking about someone you dislike?
+     K: stop thinking about someone dislike
+
+[433] Q: 准备怀孕昨天用排卵试纸测出是两天一样的红线，晚上和老公做爱，第二天有必要再做一次吗。还是说用排卵试纸测下
+     K: 排卵试纸 两天一样红线 同房后 再次测试 必要性
+
+[436] Q: who sings i 'm a man yes i am
+     K: I'm a Man Yes I Am singer
+
+[437] Q: temperature in crossville tennessee
+     K: temperature Crossville Tennessee
+
+[454] Q: 女童马丁靴加绒加厚冬酷酷
+     K: 女童 马丁靴 加绒 加厚 冬季
+
+[461] Q: how to build a lego minifigure display
+     K: lego minifigure display build
+
+[462] Q: is quercetin a flavonoid
+     K: quercetin flavonoid
+
+[463] Q: how do i transfer information from one apple id to another?
+     K: transfer Apple ID data migration
+
+[466] Q: コロラド州デンバーのユニオン駅はいつ完成した？
+     K: コロラド州 デンバー ユニオン駅 完成 時期
+
+[470] Q: 南航p舱是什么意思
+     K: 南航 P舱 含义
+
+[474] Q: what is rose blanche origin
+     K: rose blanche origin
+
+[481] Q: What is an elliptic curve?
+     K: elliptic curve definition
+
+[482] Q: 留不住爱,留不住情是什么歌
+     K: 留不住爱 留不住情 歌曲
+
+[483] Q: what is the meaning of dimension
+     K: dimension meaning definition
+
+[491] Q: In what year was Prince Hall admitted into the British military lodge?
+     K: Prince Hall British military lodge admission year
+
+[494] Q: 刚做完人流手术检查支原体感染打吊针能好吗
+     K: 人流手术 支原体感染 吊针 治疗 效果
+
+[495] Q: This novel won 1939's Pulitzer Prize for Fiction
+     K: 1939 Pulitzer Prize Fiction novel winner
+
+[498] Q: Explain: Bill O'Reilly
+     K: Bill O'Reilly 介绍 生平
+
+[502] Q: Onko viehe tavallisimmin varustettu koukulla?
+     K: viehe koukku varustus tavallisin
+
+[503] Q: 1940년 대한민국 임시정부는 어디에 위치해 있었는가?
+     K: 1940년 대한민국 임시정부 위치
+
+[507] Q: how many eggs does an audubon's oriole have
+     K: Audubon's oriole eggs clutch size
+
+[510] Q: how many calories should you intake for weight loss?
+     K: calorie intake weight loss
+
+[512] Q: who discovered the three laws of planetary motion
+     K: planetary motion three laws discoverer
+
+[514] Q: what was the battle of dangpo
+     K: battle of Dangpo
+
+[518] Q: గబ్బర్ సింగ్ చిత్రం ఎప్పుడు విడుదలైంది?
+     K: గబ్బర్ సింగ్ చిత్రం విడుదల తేదీ
+
+[519] Q: 脚扭伤肿痛这么办
+     K: 脚扭伤 肿痛 处理方法
+
+[522] Q: If the penis is a muscle, why can't you exersize it to grow larger?
+
+Serious answers only please
+     K: penis muscle exercise grow larger
+
+[528] Q: When did Turkey start using the Gregorian calendar for all purposes?
+     K: Turkey Gregorian calendar adoption date
+
+[529] Q: when did robert almer first play for austria
+     K: Robert Almer Austria debut first match
+
+[530] Q: 一个月的宝宝胸部能挤出乳白色的液体咋办
+     K: 一个月宝宝 胸部 挤出 乳白色液体 处理
+
+[534] Q: 3 way lamp socket
+     K: 3 way lamp socket
+
+[540] Q: What is the ISO arithmetic speed?
+     K: ISO arithmetic speed
+
+[543] Q: چیستان ها به لحاظ ساختار چگونه اند و چه انواعی دارند؟
+     K: چیستان ساختار انواع
+
+[544] Q: 离婚了,户口老公不给我该怎么办
+     K: 离婚 户口 迁移 办理 手续
+
+[545] Q: 花小猪打车软件是滴滴公司的吗
+     K: 花小猪 滴滴 公司 关系
+
+[548] Q: 衬衣110是多大尺码
+     K: 衬衣 110 尺码 对应
+
+[550] Q: Творческий процесс в искусстве
+     K: творческий процесс искусство
+
+[553] Q: merced ca 是哪个县
+     K: Merced CA county
+
+[557] Q: explain the Israel/Palestine conflict to me
+     K: Israel Palestine conflict explanation
+
+[560] Q: what year did heroes of olympus come out
+     K: Heroes of Olympus release year
+
+[562] Q: 胃病毒传染多长时间
+     K: 胃病毒 传染 时间
+
+[567] Q: external hard disk
+     K: external hard disk
+
+[575] Q: أين تم اختراع الباستا؟
+     K: اختراع الباستا مكان
+
+[584] Q: who is mary antrim's arch-enemy in the altar of the dead
+     K: Mary Antrim arch-enemy altar of the dead
+
+[586] Q: 我30周时候B超说胎盘3级是这个原因吗？
+     K: 胎盘3级 30周 B超 原因
+
+[589] Q: when did the jeunes chefs competition start
+     K: jeunes chefs competition start date
+
+[592] Q: 舌尖有肉刺，今天拉开看有一颗变成红色了。
+     K: 舌尖 肉刺 红色 变化
+
+[593] Q: Who were the heads of the Kyiv Committee of the All-Russian Zemstvo Union?
+     K: Kyiv Committee All-Russian Zemstvo Union heads
+
+[599] Q: What light can harm human eyes or skin?
+     K: harmful light human eyes skin
+
+[601] Q: who is exagon engineering
+     K: exagon engineering
+
+[609] Q: 类似锦屏春暖的小说
+     K: 类似 锦屏春暖 小说
+
+[610] Q: బంగారుపుట్టు గ్రామ విస్తీర్ణం ఎంత?
+     K: బంగారుపుట్టు గ్రామ విస్తీర్ణం
+
+[612] Q: soporte estanteria
+     K: soporte estanteria
+
+[618] Q: 极光发生在哪里
+     K: 极光 发生 地点
+
+[620] Q: エレクトリック・ギターの歴史について教えてください。
+     K: エレクトリック・ギター 歴史
+
+[621] Q: 脱产大专药学专业能考执业药师吗
+     K: 脱产大专 药学专业 执业药师 报考条件
+
+[622] Q: How did Molly help Heather in the given situation?
+     K: Molly help Heather situation
+
+[627] Q: who rated the movie the iron giant 3rd most positive
+     K: Iron Giant movie ratings positive 3rd
+
+[628] Q: కశ్యప మాతంగ ఏ దేశంలో మరణించాడు?
+     K: కశ్యప మాతంగ మరణించాడు దేశం
+
+[635] Q: 古典音乐剧
+     K: 古典音乐剧
+
+[636] Q: 受了工伤，在院期间生活费和护理费是怎样算的
+     K: 工伤 住院 生活费 护理费 计算标准
+
+[638] Q: what is the most haunted place in poland
+     K: most haunted place Poland
+
+[644] Q: where is veravil?
+     K: veravil location
+
+[651] Q: red bottom shoes for men
+     K: red bottom shoes men
+
+[652] Q: is twin gestation related to postpartum symptoms
+     K: twin gestation postpartum symptoms
+
+[660] Q: 关于新能源汽车产业链的发展情况，我想了解电池生产、汽车组装以及相关服务支持的具体信息。
+     K: 新能源汽车 产业链 发展 电池生产 汽车组装 服务支持
+
+[662] Q: what does zeros of the function mean in algebra?
+     K: zeros function algebra meaning
+
+[664] Q: csgo要钱吗
+     K: csgo 免费 收费
+
+[668] Q: pos机什么牌子最好
+     K: POS机 品牌 推荐 最好
+
+[680] Q: Who wrote the poem The Deserted Village?
+     K: The Deserted Village poem author
+
+[683] Q: 吃辣的和剧烈运动后会有鼻头和人中位置发麻
+     K: 吃辣 剧烈运动 鼻头发麻 人中发麻
+
+[684] Q: من هم أبناء دونالد ترامب ؟
+     K: أبناء دونالد ترامب
+
+[688] Q: 可以在佛前拍照吗
+     K: 佛前 拍照 允许
+
+[689] Q: 三天前做过一次ppd实验，现在学校来检查的可以再做一遍，重复做会有什么不良影响吗，如果没问题我希望再做一次，班里有得肺结核的，我有点不放心
+     K: PPD实验 重复做 不良影响 肺结核 接触 学校检查
+
+[704] Q: 谍战连续剧战争抗战
+     K: 谍战 连续剧 战争 抗战
+
+[705] Q: who played the professor in gilligan 's island
+     K: Gilligan's Island professor actor
+
+[706] Q: 宫寒还可以怀孕吗，有影响么
+     K: 宫寒 怀孕 影响
+
+[709] Q: who is paul zeeuwts
+     K: Paul Zeeuwts
+
+[710] Q: What is the more common name of the disease pertussis?
+     K: pertussis common name
+
+[716] Q: 广东省在线政务服务通过怎样的优化流程达到让更多事项实现在线办理？
+     K: 广东省 在线政务服务 优化流程 事项 在线办理
+
+[719] Q: こたつ 二点セット
+     K: こたつ 二点セット
+
+[720] Q: 优化算法在并行计算中的应用
+     K: 优化算法 并行计算 应用
+
+[721] Q: 來自陸上的污染、病毒、紫外線都是影響什麼系統的原因之一？
+     K: 污染 病毒 紫外线 影响 系统 原因
+
+[734] Q: 德保山歌视频
+     K: 德保 山歌 视频
+
+[739] Q: how much sugar should we eat per day
+     K: sugar daily intake recommended amount
+
+[740] Q: Which US President introduced Thanksgiving Day?
+     K: Thanksgiving Day US President established
+
+[743] Q: how much does it cost to fix the glass on an apple watch?
+     K: Apple Watch glass repair cost
+
+[745] Q: 如何通过环境控制来保护历史文物和艺术品？
+     K: 环境控制 历史文物 艺术品 保护
+
+[750] Q: 脸上有红色的纹怎么回事
+     K: 脸上 红色纹 原因
+
+[751] Q: Quelles sont les organisations de défense des animaux en France?
+     K: organisations défense animaux France
+
+[759] Q: 非典是怎么引起的
+     K: 非典 病因 起源
+
+[769] Q: 大便干燥，使用开塞露也不行，怎么办
+     K: 大便干燥 开塞露无效 解决方法
+
+[772] Q: who is lauren tarshis
+     K: Lauren Tarshis
+
+[773] Q: who is william hardin harrison
+     K: William Henry Harrison
+
+[785] Q: Кто был первым президентом Казахстана?
+     K: первый президент Казахстана
+
+[788] Q: when did apple go out of production
+     K: apple production end date
+
+[790] Q: آموزش زبان برنامه نویسی جدید
+     K: آموزش زبان برنامه‌نویسی جدید
+
+[795] Q: গ্লেন থমাস জেকব্স‌ কত সালে জন্মগ্রহণ করেন ?
+     K: গ্লেন থমাস জেকব্স জন্ম সাল
+
+[801] Q: What was the pseudonym of the Far Eastern despot Saloth Sar?
+     K: Saloth Sar pseudonym Far Eastern despot
+
+[802] Q: 奶油鳕鱼汤怎么做
+     K: 奶油鳕鱼汤 做法 食谱
+
+[806] Q: 世宗为什么最初决定在天寿山建显陵？
+     K: 世宗 天寿山 显陵 建陵 原因
+
+[808] Q: What is the timeline of conflict in Anglo-Saxon Britain?
+     K: Anglo-Saxon Britain conflict timeline
+
+[813] Q: where is learson brothers airport?
+     K: LeArson brothers airport location
+
+[816] Q: 核磁共振技术员做什么
+     K: 核磁共振 技术员 职责 工作内容
+
+[818] Q: phone number for sirius radio
+     K: Sirius radio phone number
+
+[822] Q: Mikä oli Irakin sodan lopputulos?
+     K: Irakin sota lopputulos
+
+[827] Q: why did scribes use pen strokes in their writing
+     K: scribes pen strokes writing purpose
+
+[838] Q: من هو رئيس السلطة الفلسطينية عام 2010؟
+     K: رئيس السلطة الفلسطينية 2010
+
+[841] Q: 海尔燃气热水器保修几年
+     K: 海尔 燃气热水器 保修年限
+
+[847] Q: average weather in san antonio texas in march
+     K: San Antonio Texas March average weather
+
+[848] Q: Along with Electro and disco, what genre of music influenced Freestyle?
+     K: Freestyle music genre influence Electro disco
+
+[852] Q: Do hIV-specific T-cells accumulate in the liver in HCV/HIV co-infection?
+     K: HIV-specific T-cells accumulate liver HCV HIV co-infection
+
+[853] Q: 小孩一周，肛门和阴道周围都有点红，腹泻有两周了
+     K: 婴儿 肛门红 阴道红 腹泻 两周
+
+[865] Q: 敦煌壁画，佛教艺术，飞天
+     K: 敦煌壁画 佛教艺术 飞天
+
+[867] Q: what does microcytic hypochromic anemia mean
+     K: microcytic hypochromic anemia definition
+
+[868] Q: 我国古代男子二十岁称作什么?
+     K: 古代 男子 二十岁 称谓
+
+[869] Q: gluten disease cgs symptoms
+     K: gluten disease CGS symptoms
+
+[873] Q: 如何为应届毕业生找到合适的职业道路和工作机会？
+     K: 应届毕业生 职业规划 求职 工作机会
+
+[874] Q: silicon shower loofah
+     K: silicon shower loofah
+
+[877] Q: 自2020年1月1日至3月31日，吉林省对捐赠的防疫进口物资，符合免税受赠主体条件的给予哪些帮助？
+     K: 吉林省 2020年1月1日 3月31日 捐赠 防疫进口物资 免税受赠主体 帮助
+
+[879] Q: 消毒液弄到衣服上变色怎么办
+     K: 消毒液 衣服 变色 处理方法
+
+[882] Q: when did females get the right to vote in usa
+     K: women right to vote USA date
+
+[883] Q: 你几岁开始得白内障
+     K: 白内障 发病年龄 开始时间
+
+[893] Q: t开头的英文名字 的女孩子
+     K: 英文名字 女孩 t开头
+
+[896] Q: 四川省健康证明申报起止日期是什么时候？
+     K: 四川省 健康证明 申报 起止日期
+
+[898] Q: what is the meaning of torque in physics
+     K: torque physics definition
+
+[902] Q: where is utica ny located
+     K: Utica NY location
+
+[905] Q: What state in the Appalachian Highlands is mentioned above?
+     K: Appalachian Highlands state mentioned
+
+[909] Q: 就一次腹痛。。只腹痛。不出血。。。。现在不疼了。？。是宫外孕吗
+     K: 宫外孕 腹痛 无出血 症状
+
+[916] Q: Who wrote the play, Panic, that featured Orson Wells, American actor, director, writer, and producer?
+     K: Panic play Orson Wells author
+
+[930] Q: does george washington have wooden teeth
+     K: George Washington wooden teeth
+
+[931] Q: కవులూరు గ్రామ విస్తీర్ణం ఎంత?
+     K: కవులూరు గ్రామ విస్తీర్ణం
+
+[933] Q: the oaks in nipomo
+     K: oaks nipomo
+
+[934] Q: why is human excrement brown?
+     K: human excrement brown color reason
+
+[940] Q: What was the purpose of the IBM DBMS?
+     K: IBM DBMS purpose
+
+[945] Q: 第一胎葡萄胎后第二胎有问题该怎么办我第一胎是葡萄胎，葡萄胎治疗好一年多怀第二胎，怀孕46天b超显示孕囊大小1。0*0。8厘米没有见胎牙组织，怀孕72天但b超显示孕囊大小3。4*1。6厘米有0。4厘米的胎牙无胎心，检查结果胚胎停止发育。像我这种情况还能保住胎吗？该怎么办？好想要这个孩子。
+     K: 葡萄胎 第二胎 胚胎停止发育 保胎 治疗方法
+
+[946] Q: what does an egg cause cancer
+     K: egg cancer risk
+
+[955] Q: what is permafrost
+     K: permafrost definition
+
+[965] Q: Are both Athlete and Fatherson name of Scottish bands?
+     K: Athlete Fatherson Scottish bands
+
+[966] Q: ارسطو نے مابعدالطبیعات میں کیسے حصہ ڈالا، اور اس کے فلسفے میں "مادہ" کا تصور کیا ہے؟
+     K: ارسطو مابعدالطبیعات فلسفہ مادہ تصور
+
+[967] Q: 周冬雨短发发型叫什么
+     K: 周冬雨 短发 发型 名称
+
+[972] Q: what landform is low, water land that is formed at the mouth of a river
+     K: river mouth landform low water land
+
+[977] Q: 哪个县包含伯明翰, al
+     K: 伯明翰 al 县
+
+[979] Q: James Edward Franco, is an American actor, director, screenwriter, and producer, and is known for his roles in live-action films such as he Disaster Artist, an American biographical comedy-drama film, released in which year?
+     K: James Edward Franco Disaster Artist 上映年份
+
+[981] Q: අනගාරික ධර්මපාල ගැන විස්තරයක් කරන්න.
+     K: අනගාරික ධර්මපාල විස්තර
+
+[990] Q: 内华达州亨德森的温度是多少
+     K: 内华达州 亨德森 温度
+
+[992] Q: Qual è la posizione geografica di Aarhus?
+     K: Aarhus posizione geografica
+
+[997] Q: 一个月前说话不清楚，有五分钟左右自动恢复，半个月前右边腿和脚没知觉，大概10分钟自动恢复，医院确诊说是烟雾病，让做搭桥手术，想咨询大概手术费用多少钱？
+     K: 烟雾病 搭桥手术 费用 手术费用
+
+[1001] Q: In which county is there an area called The Fylde?
+     K: Fylde county location
+
+[1006] Q: Je,Haruna Taratibu alizaliwa lini?
+     K: Haruna Taratibu alizaliwa lini
+
+[1007] Q: 什么光圈是广角
+     K: 光圈 广角
+
+[1008] Q: what race was jeff gordon in
+     K: Jeff Gordon race
+
+[1014] Q: apakah bahasa Jawa Kuno masih digunakan?
+     K: bahasa Jawa Kuno digunakan
+
+[1021] Q: 人流多长时间做好多长时间做对身体损害最小
+     K: 人流 最佳时间 身体损害 最小
+
+[1024] Q: 心脏早搏心律不齐在其他医院检查过是做手术还是什么别的医院建议做手术享问一下做手术要花多少钱
+     K: 心脏早搏 心律不齐 手术 费用
+
+[1025] Q: 一卡通账号收支管控是什么原因
+     K: 一卡通 账号 收支 管控 原因
+
+[1027] Q: What are the effects of inert sites on nonequilibrium phase transitions?
+     K: inert sites nonequilibrium phase transitions effects
+
+[1029] Q: what does hazy weather mean
+     K: hazy weather meaning
+
+[1030] Q: Quais foram os dois grandes trabalhos publicados por Gregor Mendel?
+     K: Gregor Mendel trabalhos publicados
+
+[1034] Q: can you qualify for medicare early
+     K: Medicare early eligibility requirements
+
+[1037] Q: モナコ公国はいつ建国した？
+     K: モナコ公国 建国 時期
+
+[1038] Q: Is endothelial Grb2-associated binder 1 crucial for postnatal angiogenesis?
+     K: endothelial Grb2-associated binder 1 postnatal angiogenesis crucial
+
+[1039] Q: gildan youth tshirt
+     K: gildan youth tshirt
+
+[1050] Q: How does a silencer work?
+     K: silencer how it works
+
+[1056] Q: when was mary wade born
+     K: Mary Wade birth date
+
+[1062] Q: the abolition of distraint in commercial property was necessary to comply with which laws
+     K: abolition distraint commercial property necessary comply laws
+
+[1063] Q: how much benadryl can i give puppy?
+     K: Benadryl dosage puppy safe amount
+
+[1065] Q: Inis dom faoi Leon Ó Broin.
+     K: Leon Ó Broin Inis dom faoi
+
+[1066] Q: Millä saarella sijaitsee Lindos?
+     K: Lindos saari sijainti
+
+[1069] Q: 2017上海五月拍牌时间
+     K: 2017 上海 五月 拍牌 时间
+
+[1080] Q: ups陆运需要多长时间
+     K: UPS 陆运 运输时间
+
+[1082] Q: average wage of an actor
+     K: actor average wage
+
+[1083] Q: are depilatory creams bad for you?
+     K: depilatory creams safety health effects
+
+[1086] Q: What happens when changing the fire mode on a weapon, how does the weapon change?
+     K: weapon fire mode change effects
+
+[1089] Q: Kenneth Kaunda was the first president of which African country?
+     K: Kenneth Kaunda first president African country
+
+[1090] Q: అడివి శేష్ నటించిన మొదటి చిత్రం ఏది?
+     K: అడివి శేష్ మొదటి చిత్రం
+
+[1092] Q: జయశంకర్ భూపాలపల్లి జిల్లాలో ఎన్ని మండలాలు ఉన్నాయి?
+     K: జయశంకర్ భూపాలపల్లి జిల్లా మండలాలు సంఖ్య
+
+[1094] Q: Лечение диабета 2 типа
+     K: лечение диабет 2 тип
+
+[1095] Q: can a felon live in a house with someone who owns a gun?
+     K: felon live house gun owner
+
+[1101] Q: 什么是社会制度
+     K: 社会制度 定义
+
+[1102] Q: "On what planet did the movie ""Planet of the Apes"" take place?"
+     K: Planet of the Apes movie setting planet
+
+[1103] Q: average cost of college in canada
+     K: college cost Canada average
+
+[1110] Q: are ba still going on strike?
+     K: BA strike ongoing
+
+[1112] Q: Tips backpacking Eropa murah
+     K: backpacking Eropa murah tips
+
+[1114] Q: what is monocytes in a blood test
+     K: monocytes blood test definition
+
+[1115] Q: 曙光热烫机器
+     K: 曙光 热烫机器
+
+[1117] Q: what township do i live in
+     K: township residence location
+
+[1129] Q: where is the national socialist movement located
+     K: national socialist movement headquarters location
+
+[1130] Q: Apakah Ibnu Taimiyah seorang ilmuwan Islam?
+     K: Ibnu Taimiyah ilmuwan Islam
+
+[1132] Q: デン・ハーグはどこにありますか？
+     K: デン・ハーグ 場所
+
+[1133] Q: 已经检查是甲亢了。但是我已经怀孕了想知道甲亢对孩子有没有什么影响？
+     K: 甲亢 怀孕 对胎儿影响
+
+[1134] Q: where is the albert pike recreation area
+     K: Albert Pike Recreation Area location
+
+[1138] Q: What characteristic did Ibn Sina find out about infectious diseases?
+     K: Ibn Sina infectious diseases characteristics discovery
+
+[1144] Q: who sang strange we should meet here
+     K: strange we should meet here singer
+
+[1145] Q: 妇科炎症有哪些症状
+     K: 妇科炎症 症状
+
+[1149] Q: dimanakah letak pulau Flores?
+     K: pulau Flores letak
+
+[1150] Q: வினா:
+விமானமும் ஏவுகணையும் பேசிக்கொள்வது போல ஓர் உரையாடலைக் குழுவாகச் சேர்ந்து உருவாக்குக.
+     K: விமானம் ஏவுகணை உரையாடல் குழு உருவாக்கு
+
+[1151] Q: 佳能打印如何共享ip
+     K: 佳能 打印机 共享 IP 设置
+

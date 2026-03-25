@@ -30,6 +30,9 @@ dependencies = [
     "tavily-python",
     "exa-py>=2.8.1",
     "zai-sdk>=0.2.2",
+    "tiktoken>=0.12.0",
+    "litellm>=1.82.6",
+    "anthropic>=0.86.0",
 ]
 
 [[tool.uv.index]]

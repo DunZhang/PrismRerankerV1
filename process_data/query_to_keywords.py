@@ -1,20 +1,15 @@
-"""Batch-convert natural language queries to keywords using DeepSeek Chat API.
+"""Batch-convert natural language queries to keywords using DeepSeek Reasoner API.
 
-Usage:
-uv run python -m process_data.query_to_keywords \
-    --read_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_all_filtered.jsonl \
-    --save_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_all_filtered_keywords.jsonl
-
+Usage:  uv run python -m process_data.query_to_keywords
 
 Each record is processed exactly once.  Records selected (with probability
-``--probability``) get a ``"keywords"`` field added; unselected records are
+``PROBABILITY``) get a ``"keywords"`` field added; unselected records are
 written as-is.  Supports resumption — already-written rows (identified by
 sha256 of query+pos_list+neg_list) are skipped on restart.
 """
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import logging
@@ -26,14 +21,51 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import tiktoken
 from openai import OpenAI
 from tqdm import tqdm
 
 from shared.env import DEFAULT_PROJECT_ENV_FILE, load_optional_dotenv
 
+# ---------------------------------------------------------------------------
+# Configuration — edit these variables directly
+# ---------------------------------------------------------------------------
+# 输入 JSONL 文件路径
+READ_PATH = Path(
+    "/mnt/g/PrismRerankerV1Data/"
+    "KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed.jsonl"
+)
+# 输出 JSONL 文件路径（增量追加，支持断点续传）
+SAVE_PATH = Path(
+    "/mnt/g/PrismRerankerV1Data/"
+    "KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed_keywords.jsonl"
+)
+# 每条 query 被选中转换为关键词的概率
+PROBABILITY: float = 0.4
+# 每批处理的行数
+BATCH_SIZE: int = 128
+# API 并发线程数
+MAX_WORKERS: int = 32
+# 随机种子，保证可复现的随机选择
+SEED: int = 42
+# .env 文件路径，None 表示使用项目根目录的 .env
+ENV_FILE: Path | None = None
+# 是否开启 debug 日志
+VERBOSE: bool = False
+
 log = logging.getLogger("query_to_keywords")
 
 _KEYWORDS_RE = re.compile(r"<keywords>(.*?)</keywords>", re.DOTALL)
+
+# 包含以下任一子串的 query 直接跳过，不调用 API 转关键词
+_SKIP_SUBSTRINGS: list[str] = [
+    "Dialogue History:",
+    "根据以下商品信息检索对应的商品描述",
+]
+
+# query 超过此 token 数直接跳过
+_MAX_QUERY_TOKENS: int = 40
+_TOKENIZER = tiktoken.get_encoding("cl100k_base")
 
 # ---------------------------------------------------------------------------
 # Template
@@ -118,15 +150,28 @@ def _extract_keywords(text: str) -> str:
 
 
 def _call_deepseek(client: OpenAI, prompt: str) -> str:
-    """Call DeepSeek chat API and return extracted keywords."""
+    """Call DeepSeek reasoner API and return extracted keywords.
+
+    The reasoner model may put the answer in ``content`` or
+    ``reasoning_content`` (or both).  We check both fields.
+    """
     resp = client.chat.completions.create(
         model="deepseek-chat",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-        max_tokens=256,
+        max_tokens=8192,
     )
-    content = resp.choices[0].message.content or ""
-    return _extract_keywords(content)
+    msg = resp.choices[0].message
+    content = msg.content or ""
+    reasoning = getattr(msg, "reasoning_content", "") or ""
+
+    # Try content first, then reasoning_content
+    for text in (content, reasoning):
+        m = _KEYWORDS_RE.search(text)
+        if m:
+            return m.group(1).strip()
+
+    # Fallback: return content stripped (may be empty)
+    return content.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -196,11 +241,15 @@ def process(
     skipped = 0
     converted = 0
     errors = 0
+    refused = 0
     t_start = time.monotonic()
 
+    # 预览文件：仅包含 query 和 keywords 的对照
+    preview_path = save_path.with_name(save_path.stem + "_preview.txt")
     with (
         open(read_path, encoding="utf-8") as fin,
         open(save_path, "a", encoding="utf-8") as fout,
+        open(preview_path, "a", encoding="utf-8") as fpreview,
     ):
         pbar = tqdm(
             fin,
@@ -230,34 +279,39 @@ def process(
             if row_hash in done_hashes:
                 skipped += 1
                 pbar.set_postfix_str(
-                    f"ok={processed} conv={converted} skip={skipped} err={errors}"
+                    f"ok={processed} conv={converted} skip={skipped} "
+                    f"refused={refused} err={errors}"
                 )
                 continue
 
             batch.append(row)
 
             if len(batch) >= batch_size:
-                n_conv, n_err = _process_batch(
-                    batch, client, template, rng, probability, max_workers, fout
+                n_conv, n_err, n_ref = _process_batch(
+                    batch, client, template, rng, probability, max_workers, fout, fpreview
                 )
                 processed += len(batch)
                 converted += n_conv
                 errors += n_err
+                refused += n_ref
                 batch = []
                 pbar.set_postfix_str(
-                    f"ok={processed} conv={converted} skip={skipped} err={errors}"
+                    f"ok={processed} conv={converted} skip={skipped} "
+                    f"refused={refused} err={errors}"
                 )
 
         # Process remaining rows
         if batch:
-            n_conv, n_err = _process_batch(
-                batch, client, template, rng, probability, max_workers, fout
+            n_conv, n_err, n_ref = _process_batch(
+                batch, client, template, rng, probability, max_workers, fout, fpreview
             )
             processed += len(batch)
             converted += n_conv
             errors += n_err
+            refused += n_ref
             pbar.set_postfix_str(
-                f"ok={processed} conv={converted} skip={skipped} err={errors}"
+                f"ok={processed} conv={converted} skip={skipped} "
+                f"refused={refused} err={errors}"
             )
 
         pbar.close()
@@ -267,10 +321,11 @@ def process(
     log.info("-" * 60)
     log.info("FINISHED in %s", _fmt_duration(elapsed))
     log.info(
-        "  processed=%d, converted=%d, skipped=%d, errors=%d",
+        "  processed=%d, converted=%d, skipped=%d, refused=%d, errors=%d",
         processed,
         converted,
         skipped,
+        refused,
         errors,
     )
     log.info("  avg speed: %.2f rows/s", speed)
@@ -285,19 +340,25 @@ def _process_batch(
     probability: float,
     max_workers: int,
     fout,  # noqa: ANN001
-) -> tuple[int, int]:
+    fpreview,  # noqa: ANN001
+) -> tuple[int, int, int]:
     """Process a batch: select queries, call API in parallel, write all rows.
 
     Returns:
-        (converted_count, error_count)
+        (converted_count, error_count, refused_count)
     """
-    # Decide which rows to convert
+    # Decide which rows to convert (skip blacklisted substrings and long queries)
     selected_indices: list[int] = [
-        i for i in range(len(batch)) if rng.random() < probability
+        i
+        for i in range(len(batch))
+        if rng.random() < probability
+        and not any(s in batch[i]["query"] for s in _SKIP_SUBSTRINGS)
+        and len(_TOKENIZER.encode(batch[i]["query"])) <= _MAX_QUERY_TOKENS
     ]
 
     converted = 0
     errors = 0
+    refused = 0
 
     if selected_indices:
         # Build prompts for selected rows
@@ -326,93 +387,44 @@ def _process_batch(
                     results[idx] = None
                     errors += 1
 
-        # Attach keywords to selected rows
+        # Attach keywords to selected rows (skip if model refused)
         for idx, keywords in results.items():
             if keywords is not None:
-                batch[idx]["keywords"] = keywords
-                converted += 1
+                if keywords.strip().upper() == "SKIP":
+                    refused += 1
+                elif len(keywords.split()) > 7:
+                    refused += 1
+                else:
+                    batch[idx]["keywords"] = keywords
+                    converted += 1
 
     # Write all rows in batch (selected or not)
     for row in batch:
         fout.write(json.dumps(row, ensure_ascii=False) + "\n")
+        if "keywords" in row:
+            fpreview.write(f"Q: {row['query']}\nK: {row['keywords']}\n\n")
     fout.flush()
+    fpreview.flush()
 
-    return converted, errors
+    return converted, errors, refused
 
 
 # ---------------------------------------------------------------------------
-# CLI
+# Entry point
 # ---------------------------------------------------------------------------
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Convert natural queries to keywords using DeepSeek Chat API."
-    )
-    parser.add_argument(
-        "--read_path",
-        type=Path,
-        required=True,
-        help="Input JSONL file.",
-    )
-    parser.add_argument(
-        "--save_path",
-        type=Path,
-        required=True,
-        help="Output JSONL file (appended incrementally).",
-    )
-    parser.add_argument(
-        "--probability",
-        type=float,
-        default=0.3,
-        help="Probability of converting a query to keywords (default: 0.3).",
-    )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=128,
-        help="Number of rows per batch (default: 128).",
-    )
-    parser.add_argument(
-        "--max_workers",
-        type=int,
-        default=32,
-        help="Max threads for API calls (default: 32).",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="Random seed for reproducible selection (default: 42).",
-    )
-    parser.add_argument(
-        "--env_file",
-        type=Path,
-        default=None,
-        help="Path to .env file (default: .env in project root).",
-    )
-    parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Enable debug logging.",
-    )
-    args = parser.parse_args()
+if __name__ == "__main__":
+    _setup_logging(verbose=VERBOSE)
 
-    _setup_logging(verbose=args.verbose)
-
-    if not args.read_path.exists():
-        log.error("read_path not found: %s", args.read_path)
+    if not READ_PATH.exists():
+        log.error("READ_PATH not found: %s", READ_PATH)
         sys.exit(1)
 
     process(
-        read_path=args.read_path,
-        save_path=args.save_path,
-        probability=args.probability,
-        batch_size=args.batch_size,
-        max_workers=args.max_workers,
-        seed=args.seed,
-        env_file=args.env_file,
+        read_path=READ_PATH,
+        save_path=SAVE_PATH,
+        probability=PROBABILITY,
+        batch_size=BATCH_SIZE,
+        max_workers=MAX_WORKERS,
+        seed=SEED,
+        env_file=ENV_FILE,
     )
-
-
-if __name__ == "__main__":
-    main()
