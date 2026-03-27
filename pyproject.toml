@@ -33,6 +33,8 @@ dependencies = [
     "tiktoken>=0.12.0",
     "litellm>=1.82.6",
     "anthropic>=0.86.0",
+    "langdetect>=1.0.9",
+    "pycountry>=26.2.16",
 ]
 
 [[tool.uv.index]]

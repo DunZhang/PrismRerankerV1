@@ -23,7 +23,13 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-
+MODELS = [
+    "deepseek-chat_annotated_label",
+    "google/gemini-3-flash-preview_annotated_label",
+    "openai/gpt-5.4-mini_annotated_label",
+    "qwen3.5-397b-a17b_annotated_label",
+    "anthropic/claude-haiku-4.5_annotated_label",
+]
 def _pair_hash(query: str, document: str) -> str:
     return hashlib.sha256(f"{query}\n{document}".encode()).hexdigest()
 

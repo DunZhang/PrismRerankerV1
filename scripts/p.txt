@@ -1,0 +1,209 @@
+你是搜索相关性标注员。给定一条用户 query 和一篇相关文档，提取文档中与 query 相关的贡献点（contribution）和证据（evidence）。
+
+<contribution_guide>
+contribution 是指该文档具体解决了 query 的什么问题。不同文档对同一 query 的贡献往往不同，这里只举几个例子：
+- 解释了某个概念的原理或机制
+- 提供了实验数据或统计结论作为依据
+- 给出了可操作的方法、步骤或方案
+- 用案例或实际经验佐证了某个观点
+- 对比了多种选项的优缺点，辅助决策
+- 补充了注意事项、风险或边界条件
+
+请用一句话概括该文档帮 query 解决了什么，涵盖所有核心贡献点，但每个点只需点到即可，不要展开。
+</contribution_guide>
+
+<evidence_guide>
+evidence 将完全替代原文，下游模型只能看到 evidence、永远无法访问原文。因此：
+
+1. 自包含是最高原则：文档中所有对回答 query 有用的信息必须保留在 evidence 中，不可遗漏。消解指代、补全省略、保留关键数据和限定条件，确保仅凭 evidence 就能完整回答 query。宁可写长，不可丢信息。
+2. 在自包含的前提下精简：合并重复表述，去除与 query 明确无关的内容，但如果拿不准某条信息是否有用，保留它。
+3. 忠实：不添加文档中没有的信息。
+</evidence_guide>
+
+<output_format>
+依次输出 <contribution>、<evidence> 两个字段：
+<contribution>该文档帮 query 解决了什么问题</contribution>
+<evidence>基于文档相关内容整合改写的自包含文本</evidence>
+</output_format>
+
+<examples>
+<example>
+<query>如何快速减肥</query>
+<document>
+一项为期12周的随机对照试验（n=200）发现，间歇性禁食组平均减重6.8kg，显著高于传统热量限制组的4.1kg（p&lt;0.01）。研究者认为间歇性禁食通过延长脂肪氧化窗口期来加速减脂。
+</document>
+对应的输出：
+<contribution>用对照实验数据证明了间歇性禁食比传统热量限制减重更快</contribution>
+<evidence>一项12周随机对照试验（200人）显示，间歇性禁食组平均减重6.8kg，显著优于传统热量限制组的4.1kg（p&lt;0.01），其机制可能是延长了脂肪氧化窗口期。</evidence>
+</example>
+
+<example>
+<query>锂电池热失控的主要原因有哪些</query>
+<document>
+锂电池广泛应用于手机、电动汽车等领域。热失控是锂电池最严重的安全隐患之一。内短路是热失控的首要诱因，常由制造缺陷、锂枝晶穿刺隔膜等引起。外部过充导致正极释氧，与电解液反应产生大量热量，是第二大诱因。高温环境下电解液分解也可触发热失控链式反应。
+</document>
+对应的输出：
+<contribution>系统列举了热失控的三类主要诱因及其机制</contribution>
+<evidence>锂电池热失控的主要原因包括三类：一是内短路，常由制造缺陷或锂枝晶穿刺隔膜引起；二是外部过充，导致正极释氧并与电解液剧烈反应产生大量热；三是高温环境下电解液自发分解，触发链式放热反应。</evidence>
+</example>
+</examples>
+
+---
+
+下面开始任务，query 和 document 如下：
+
+<query>
+Does standing in front of a modern day Microwave actually cause health problems?
+</query>
+
+<document>
+Is Standing Next to a Microwave Bad? Debunking the Myths - MicrowavesHub
+
+In today’s fast-paced world, microwaves have become a staple in our kitchens. They offer a convenient way to reheat food, but have you ever wondered if standing next to a microwave while it’s in use is harmful? This article delves into the safety measures associated with microwave use, the potential effects of microwave radiation, and practical tips to ensure a safe cooking environment.
+
+## The Basics of Microwave Technology
+
+Before we jump into the concerns about standing next to a microwave, it’s essential to understand how microwaves work. A microwave oven uses electromagnetic radiation to heat food. Here’s a brief overview of the key components:
+
+### How Microwaves Work
+
+A microwave emits microwaves, which are a form of electromagnetic radiation. When these waves penetrate food, they excite water molecules, causing them to vibrate and generate heat. This method allows food to be cooked or reheated quickly and evenly.
+
+### Types of Radiation
+
+It’s important to note that the radiation microwaves produce is non-ionizing. This means that it does not carry enough energy to remove tightly bound electrons from atoms or molecules and therefore isn’t considered harmful at typical exposure levels. Here’s a breakdown of the two main types of radiation:
+
+- Non-ionizing radiation: Found in microwaves; it is generally considered safe.
+- Ionizing radiation: Found in sources like X-rays; it can cause cellular damage.
+
+## Understanding Microwave Safety Standards
+
+Microwave ovens are designed with safety features intended to prevent radiation leakage. Regulatory agencies set stringent standards that manufacturers must adhere to.
+
+### Government Regulations
+
+In the United States, the Food and Drug Administration (FDA) regulates microwave oven safety, including the amount of radiation a microwave can emit while it’s operating. The limit is set far below levels that would cause harm, ensuring that the general public remains safe when using these appliances.
+
+### Modern Microwave Design
+
+Modern microwaves are equipped with several safety mechanisms, such as:
+
+- Interlock Systems: Automatically shutting off the microwave when the door is opened.
+- Sealed Enclosures: Preventing radiation escape.
+
+These features significantly reduce any risk associated with standing next to a functioning microwave.
+
+## The Myths About Microwaves
+
+Several myths surrounding microwave safety have permeated popular culture. Let’s break down a few of the most common misconceptions.
+
+### Myth 1: Standing Next to a Microwave Increases Cancer Risk
+
+One of the most pervasive myths is that being near a microwave can increase your risk of developing cancer. However, research shows that the radiation emitted by a microwave oven is nowhere near the levels that would be deemed harmful.
+
+#### Research Findings
+
+Studies have consistently indicated that there is no evidence to support the claim that microwave ovens increase cancer risk. For example, a study from the National Cancer Institute emphasizes that there is no link between the use of microwave ovens and cancer.
+
+### Myth 2: Microwaved Food Is Dangerous
+
+Another widespread belief is that food cooked in a microwave is somehow less safe or nutritious. While microwaving can alter food in terms of texture, nutrients, and flavor, it does not render it unsafe.
+
+#### Food Safety and Microwave Use
+
+Research from the USDA indicates that microwaving can actually preserve nutrients better than other cooking methods because it requires shorter cooking times and uses less water. Additionally, when food is heated properly in a microwave, it is just as safe to eat as food cooked in conventional ovens.
+
+## Health Concerns of Standing Next to a Microwave
+
+Despite the evidence suggesting microwaves are safe, some individuals still harbor concerns about their proximity to this appliance. Let’s delve into the health concerns one may have regarding standing next to a microwave.
+
+### Potential Exposure to Microwave Radiation
+
+While the FDA establishes strict guidelines for radiation emissions, some people worry about what might happen if those guidelines are exceeded, whether due to faulty appliances or prolonged exposure.
+
+#### What Happens When Microwaves Leak?
+
+In rare cases, a microwave can become damaged, resulting in radiation leakage. This is why it is crucial to inspect microwave ovens regularly for any signs of wear and tear, like damaged doors or loose seals. If a microwave is functioning properly, it is safe to be near during use.
+
+### Alternatives for Safety-Conscious Users
+
+If you remain uneasy about standing next to a microwave, even when it is functioning correctly, consider these alternatives:
+
+- Microwave placement: Position your microwave in a way that it is not placed adjacent to work or dining areas.
+- Maintain distance: If feasible, stay at least a few feet away while the microwave is in use.
+
+## Best Practices for Microwave Use
+
+To ensure your microwave operates safely and effectively, follow these best practices:
+
+### Proper Ventilation
+
+Make sure your microwave has adequate ventilation. This assists in heat dissipation, ensuring the appliance does not overheat and malfunction.
+
+### Regular Maintenance
+
+Perform routine checks on your microwave to ensure it is in good working condition. This includes:
+
+#### Inspection Tips
+
+| Inspection Item | Action Required |
+| --- | --- |
+| Door Seal | Check for cracks or tears and replace if necessary. |
+| Turntable | Ensure it rotates freely. Clean any debris under it. |
+
+## Conclusion
+
+In summary, standing next to a microwave while it’s in use is generally considered safe due to strict regulatory guidelines that govern microwave radiation emissions. While some myths persist about the dangers of microwave ovens and their supposed relationship with cancer, research dispels these claims, reaffirming that microwaves do not pose a health threat when used properly.
+
+To ensure your safety, remain vigilant about inspecting and maintaining your microwave, and don’t hesitate to stand a reasonable distance away if it makes you feel more comfortable. As we continue to rely on these handy devices for quick meal preparation, it’s crucial to stay informed about their safety standards and best practices to foster a healthier cooking environment for everyone.
+
+## Is standing next to a microwave harmful?
+
+Standing next to a microwave is generally considered safe for most people. Microwaves are designed with safety features that prevent radiation from escaping the cooking chamber. The microwaves are contained within the appliance, and when the door is closed, the machine operates safely. Regulatory standards ensure that the amount of radiation emitted is well below levels that could pose any health risk.
+
+Moreover, studies conducted by various health organizations, including the World Health Organization (WHO), have stated that there is no credible evidence to suggest that being near a microwave oven has harmful effects on human health. The levels of electromagnetic radiation produced by microwaves are minuscule compared to those produced by other common household devices, such as mobile phones or Wi-Fi routers.
+
+## Can microwave radiation cause cancer?
+
+Current scientific consensus indicates that microwave radiation from appliances does not cause cancer. Microwaves use non-ionizing radiation, which means they do not have enough energy to ionize atoms or molecules or to directly damage DNA within cells. The non-ionizing nature of microwave radiation means it’s unlikely to contribute to cancer development the way ionizing radiation, such as X-rays or UV rays, can.
+
+Numerous studies have investigated the link between microwave exposure and cancer risk, and no credible evidence has been found to support such claims. Health organizations, including the American Cancer Society, have confirmed that exposure to microwaves operates within safe limits and does not increase cancer risks.
+
+## What about the health risks of using microwaves?
+
+Using microwaves is widely considered safe, and they are a convenient cooking method when used properly. The primary health concerns regarding microwaves involve cooking food in certain types of plastic containers that may release harmful chemicals when heated. It is recommended to use microwave-safe containers to minimize any risks associated with chemical leaching.
+
+Additionally, it’s essential to ensure that microwaves are well maintained. Regularly checking for any damage to the door or seals can prevent potential issues. As long as they are used according to manufacturer guidelines, microwaves can be a safe and efficient cooking tool.
+
+## Do microwaves deplete nutrients in food?
+
+The concern about nutrient depletion in food over microwave cooking is often overstated. While cooking methods affect the nutritional value of food, microwaving can actually preserve nutrients better than some other cooking methods, such as boiling. This is because microwaving cooks food quickly and requires less water, preventing the leaching of water-soluble vitamins like B and C.
+
+Moreover, the short cooking time of microwaving can help retain more of the food’s nutrients compared to longer cooking methods. To further optimize nutrient retention when using a microwave, consider using minimal water and avoiding overcooking foods.
+
+## Is it safe to use a microwave every day?
+
+Daily use of a microwave is safe for most people. As previously mentioned, modern microwave ovens have built-in safety features that adhere to strict regulatory guidelines. When maintained properly, they pose no significant health risks, making them a convenient tool for preparing meals quickly and efficiently.
+
+In fact, the frequent use of microwaves can encourage healthier eating habits by facilitating the quick preparation of meals, including vegetables and whole grains. It’s essential to follow safety guidelines and use microwave-safe containers to ensure the best practices in everyday usage.
+
+## How far should you stand from a microwave while it’s in use?
+
+There is no specific distance required to stand away from a microwave. Most health guidelines suggest that being in close proximity while the microwave is operating is perfectly safe due to the shielding and containment of the microwave radiation within the appliance. However, if it makes you feel more comfortable, standing a few feet away is a personal preference rather than a necessity.
+
+Ultimately, the design of modern microwaves minimizes any potential radiation exposure, and the levels are significantly lower than other household devices. If you remain aware of the safety features in place, standing next to a microwave while it’s running should not be a cause for concern.
+
+## Can pets be affected by microwaves?
+
+There is no evidence that microwaves pose any danger to pets when they are operating. Like humans, animals are generally safe from microwave radiation due to the contained nature of how microwaves work. The radiation emitted is non-ionizing, meaning it does not have the energy to alter cell structure or cause harm to living tissues, whether the subject is human or animal.
+
+However, it’s wise to be cautious regarding your pets’ behavior around appliances, even if the equipment is deemed safe. Ensuring that pets don’t get too close to the microwave while it’s in operation is a good precaution, but their health should remain unaffected by the microwave’s normal functioning.
+
+## What should I do if my microwave is making unusual noises?
+
+If your microwave is making unusual noises, it’s best to turn it off immediately and disconnect it from the power source. Unexplained sounds can indicate that something is wrong with the interior components, such as the turntable or the magnetron, and it’s wise not to continue using it until it has been checked by a qualified technician.
+
+Ignoring strange noises can lead to more significant issues down the line. If you’re experiencing problems, contacting the manufacturer or a professional repair service is the best course of action to ensure both your safety and the appliance’s functionality. Regular maintenance can help avoid these issues in the first place.
+</document>
+
+你的输出语言为English。

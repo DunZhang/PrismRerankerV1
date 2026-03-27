@@ -1,10 +1,12 @@
-from mteb import get_benchmark
+from langdetect import detect
+import pycountry
 
-tasks = get_benchmark("MTEB(eng, v2)")
-for task in tasks:
-    if task.metadata.type == "Retrieval":
-        print(task.metadata.dataset.get("path"))
-tasks = get_benchmark("MTEB(cmn, v1)")
-for task in tasks:
-    if task.metadata.type == "Retrieval":
-        print(task.metadata.dataset.get("path"))
+def detect_language(text):
+    code = detect(text)
+    # langdetect 返回的可能带地区后缀，取前两位
+    lang = pycountry.languages.get(alpha_2=code[:2])
+    return lang.name if lang else code
+
+print(detect_language("这是一段中文文本"))       # Chinese
+print(detect_language("This is 那艘拉法基物品发阿飞En阿斯弗glish langdetect pycountry 段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中哈"))        # English
+print(detect_language("Bonjour le monde"))       # French

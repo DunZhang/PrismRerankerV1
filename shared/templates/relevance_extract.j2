@@ -1,38 +1,50 @@
-你是搜索相关性标注员。给定一条用户 query 和一篇文档，提取文档中与 query 相关的方面（aspect）和证据（evidence）。
+你是搜索相关性标注员。给定一条用户 query 和一篇相关文档，提取文档中与 query 相关的贡献点（contribution）和证据（evidence）。
+
+<contribution_guide>
+contribution 是指该文档具体解决了 query 的什么问题。不同文档对同一 query 的贡献往往不同，这里只举几个例子：
+- 解释了某个概念的原理或机制
+- 提供了实验数据或统计结论作为依据
+- 给出了可操作的方法、步骤或方案
+- 用案例或实际经验佐证了某个观点
+- 对比了多种选项的优缺点，辅助决策
+- 补充了注意事项、风险或边界条件
+
+请用一句话概括该文档帮 query 解决了什么，涵盖所有核心贡献点，但每个点只需点到即可，不要展开。
+</contribution_guide>
+
+<evidence_guide>
+evidence 将完全替代原文，下游模型只能看到 evidence、永远无法访问原文。因此：
+
+1. 自包含是最高原则：文档中所有对回答 query 有用的信息必须保留在 evidence 中，不可遗漏。消解指代、补全省略、保留关键数据和限定条件，确保仅凭 evidence 就能完整回答 query。宁可写长，不可丢信息。
+2. 在自包含的前提下精简：合并重复表述，去除与 query 明确无关的内容，但如果拿不准某条信息是否有用，保留它。
+3. 忠实：不添加文档中没有的信息。
+</evidence_guide>
 
 <output_format>
-你的输出必须严格遵守以下格式规则：
-
-- 依次输出 <aspect>、<evidence> 两个字段，格式如下：
-
-<aspect>文档与 query 相关的具体方面</aspect>
-<evidence>基于文档相关内容整合改写的自包含文本，需消解指代、补全省略、合并重复，尽量精简</evidence>
-
-- 如果你认为文档与 query 无关，两个字段均输出"无任何帮助"，格式如下：
-
-<aspect>无任何帮助</aspect>
-<evidence>无任何帮助</evidence>
+依次输出 <contribution>、<evidence> 两个字段：
+<contribution>该文档帮 query 解决了什么问题</contribution>
+<evidence>基于文档相关内容整合改写的自包含文本</evidence>
 </output_format>
 
 <examples>
+<example>
+<query>如何快速减肥</query>
+<document>
+一项为期12周的随机对照试验（n=200）发现，间歇性禁食组平均减重6.8kg，显著高于传统热量限制组的4.1kg（p&lt;0.01）。研究者认为间歇性禁食通过延长脂肪氧化窗口期来加速减脂。
+</document>
+对应的输出：
+<contribution>用对照实验数据证明了间歇性禁食比传统热量限制减重更快</contribution>
+<evidence>一项12周随机对照试验（200人）显示，间歇性禁食组平均减重6.8kg，显著优于传统热量限制组的4.1kg（p&lt;0.01），其机制可能是延长了脂肪氧化窗口期。</evidence>
+</example>
+
 <example>
 <query>锂电池热失控的主要原因有哪些</query>
 <document>
 锂电池广泛应用于手机、电动汽车等领域。热失控是锂电池最严重的安全隐患之一。内短路是热失控的首要诱因，常由制造缺陷、锂枝晶穿刺隔膜等引起。外部过充导致正极释氧，与电解液反应产生大量热量，是第二大诱因。高温环境下电解液分解也可触发热失控链式反应。
 </document>
 对应的输出：
-<aspect>从内短路、过充、高温三个方面解释了锂电池热失控的主要诱因</aspect>
+<contribution>系统列举了热失控的三类主要诱因及其机制</contribution>
 <evidence>锂电池热失控的主要原因包括三类：一是内短路，常由制造缺陷或锂枝晶穿刺隔膜引起；二是外部过充，导致正极释氧并与电解液剧烈反应产生大量热；三是高温环境下电解液自发分解，触发链式放热反应。</evidence>
-</example>
-
-<example>
-<query>如何申请日本高度人才签证</query>
-<document>
-日本是亚洲最受欢迎的留学和工作目的地之一。近年来日本政府推出了多项措施吸引海外人才。日本的签证种类包括旅游签证、工作签证、留学签证等。高度人才签证属于工作签证的一种，面向高技能专业人士。
-</document>
-对应的输出：
-<aspect>无任何帮助</aspect>
-<evidence>无任何帮助</evidence>
 </example>
 </examples>
 
@@ -47,3 +59,5 @@
 <document>
 {{ document }}
 </document>
+
+你的输出语言为{{lang}}。
