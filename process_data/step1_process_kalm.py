@@ -99,7 +99,7 @@ def merge_and_shuffle_all(save_dir: str):
         all_lines.extend(lines)
         print(f"读取 {name}: {len(lines)} 条")
     random.shuffle(all_lines)
-    out_path = join(save_dir, "KaLM__all_retrieval.jsonl")
+    out_path = join(save_dir, "step1_KaLM__all_retrieval.jsonl")
     with open(out_path, "w", encoding="utf8") as fw:
         fw.writelines(all_lines)
     print(f"合并完成，共 {len(all_lines)} 条，已保存至 {out_path}")

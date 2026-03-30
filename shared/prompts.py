@@ -24,10 +24,15 @@ _raw_template = _env.get_template("reranker_raw.j2")
 # ---------------------------------------------------------------------------
 # Shared constants
 # ---------------------------------------------------------------------------
-SYSTEM_PROMPT: str = (
+ORIGINAL_SYSTEM_PROMPT: str = (
     "Judge whether the Document meets the requirements based on "
     "the Query and the Instruct provided. Note that the answer "
     'can only be "yes" or "no".'
+)
+
+TRAINING_SYSTEM_PROMPT: str = (
+    "Judge whether the Document meets the requirements based on "
+    "the Query and the Instruct provided. "
 )
 
 DEFAULT_EVAL_INSTRUCTION: str = (
@@ -35,15 +40,11 @@ DEFAULT_EVAL_INSTRUCTION: str = (
 )
 
 TRAINING_INSTRUCTION: str = (
-    "Given a query and a document, determine whether "
-    "the document directly and specifically answers or addresses "
-    'the query. After providing a "yes" or "no", then provide '
-    "the following in XML format:\n"
-    "1. The aspects of the Document that help answer the query.\n"
-    "2. An evidence statement based on the above, "
-    "integrated and rewritten to be understandable even without "
-    "the Document. Please retain original phrasing as much as "
-    "possible."
+    "Given a query and a document, judge whether the document "
+    'is relevant to the query. Answer "yes" or "no", '
+    "then provide in XML:\n"
+    "1. <contribution>: what the document contributes to the query.\n"
+    "2. <evidence>: a self-contained rewrite of relevant content."
 )
 
 
@@ -54,10 +55,11 @@ def render_raw_prompt(
     query: str,
     doc: str,
     instruction: str = TRAINING_INSTRUCTION,
+    system_prompt: str = TRAINING_SYSTEM_PROMPT,
 ) -> str:
     """Render the full raw reranker prompt (no chat template needed)."""
     return _raw_template.render(
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         instruction=instruction,
         query=query,
         doc=doc,
@@ -65,7 +67,8 @@ def render_raw_prompt(
 
 
 __all__ = [
-    "SYSTEM_PROMPT",
+    "ORIGINAL_SYSTEM_PROMPT",
+    "TRAINING_SYSTEM_PROMPT",
     "DEFAULT_EVAL_INSTRUCTION",
     "TRAINING_INSTRUCTION",
     "render_raw_prompt",

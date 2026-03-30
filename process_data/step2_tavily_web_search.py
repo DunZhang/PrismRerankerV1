@@ -27,7 +27,6 @@ import hashlib
 import json
 import logging
 import os
-import random
 import re
 import sys
 import threading
@@ -278,48 +277,8 @@ def _is_usage_limit_error(exc: Exception) -> bool:
     return has_quota_hint and has_exhausted_hint
 
 
-def _choose_doc(search_item: dict[str, Any], rng: random.Random) -> str:
-    candidates: list[str] = []
-    for field in ("content", "raw_content"):
-        value = search_item.get(field)
-        if isinstance(value, str) and value.strip():
-            candidates.append(value.strip())
-
-    if candidates:
-        doc = rng.choice(candidates)
-    else:
-        doc = str(search_item.get("title") or search_item.get("url") or "").strip()
-
-    title = str(search_item.get("title") or "").strip()
-    if title and doc and rng.random() < 0.5:
-        doc = f"{title}\n{doc}"
-    return doc
-
-
-def _build_tavily_topk(row_hash: str, response: dict[str, Any]) -> dict[str, Any]:
-    rng = random.Random(row_hash)
-    topk_docs: list[str] = []
-
-    answer = response.get("answer")
-    if isinstance(answer, str) and answer.strip():
-        topk_docs.append(answer.strip())
-
-    results = response.get("results")
-    if isinstance(results, list):
-        for item in results:
-            if not isinstance(item, dict):
-                continue
-            doc = _choose_doc(item, rng)
-            if not doc:
-                continue
-            topk_docs.append(doc)
-
-    return {"topk_docs": topk_docs}
-
-
 def _augment_row(
     row: dict[str, Any],
-    row_hash: str,
     response: dict[str, Any],
 ) -> dict[str, Any]:
     out_row = dict(row)
@@ -334,7 +293,6 @@ def _augment_row(
 
     extra["original_tavily_result"] = response
     out_row["extra"] = extra
-    out_row["tavily_topk"] = _build_tavily_topk(row_hash, response)
     return out_row
 
 
@@ -394,7 +352,7 @@ def _process_batch(
             )
             continue
 
-        out_row = _augment_row(row=row, row_hash=row_hash, response=result)
+        out_row = _augment_row(row=row, response=result)
         fout.write(json.dumps(out_row, ensure_ascii=False) + "\n")
         done_hashes.add(row_hash)
         written += 1

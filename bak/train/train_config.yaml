@@ -22,11 +22,10 @@ lora:
   use_rslora: false
 
 data:
-  train_file: "/mnt/data/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_all_filtered.jsonl"
-  train_samples: null  # null 表示全量，设为整数则随机采样 N 条
-  dev_dir: "/mnt/data/PrismRerankerV1Data/dev/"  # 目录下所有 .jsonl 文件参与评估
-  eval_samples: 3  # 每个评估文件最多 N 条，null 表示全量
-  eval_files: 1
+  sft_data_file: "/mnt/g/PrismRerankerV1Data/step10_sft_data.jsonl"
+  point_wise_data_file: "/mnt/g/PrismRerankerV1Data/step10_point_wise_data.jsonl"
+  sft_ratio: 0.3  # 30% 的训练步数是sft
+  train_samples: null  # null 表示全量，设为整数则取前 N 条
   num_workers: 2
   pin_memory: true
 
@@ -37,26 +36,17 @@ training:
   warmup_steps: 200
   lr_scheduler: "cosine"  # cosine | linear
   grad_accum_steps: 4
-  micro_batch_size: 8  # 每次 forward 的序列数，减小可省显存
   max_grad_norm: 1.0  # 0 表示不做梯度裁剪
   seed: 42
 
 loss:
-  alpha_rank: 0
-  beta_list: 0
-  gamma_point: 50
-  temperature: 1.5
-  hard_neg_scale: 3.0
-
-evaluation:
-  interval_samples: 400  # 按全局 seen samples 触发 dev MRR
-  num_neg: 30  # 评估时取前 N 个负例，null 表示全部
+  gamma_point: 1.0  # point-wise MSE loss 权重
+  gamma_sft: 1.0    # SFT cross-entropy loss 权重
 
 output:
-  dir: "/mnt/data/train_output/test1_baseline"
-  run_name: "test1_baseline"
-  save_every_eval: true  # 每次评估都保存 checkpoint 到 samples-{N}/
-  save_last_checkpoint: false  # 训练结束后额外保存 last/
+  dir: "/mnt/data/train_output/v2_test"
+  run_name: "v2_test"
+  save_interval_samples: 5000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:
   wandb_project: "prism-reranker-v1"

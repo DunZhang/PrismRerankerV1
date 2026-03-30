@@ -1,12 +1,7 @@
-from langdetect import detect
-import pycountry
+import json
 
-def detect_language(text):
-    code = detect(text)
-    # langdetect 返回的可能带地区后缀，取前两位
-    lang = pycountry.languages.get(alpha_2=code[:2])
-    return lang.name if lang else code
-
-print(detect_language("这是一段中文文本"))       # Chinese
-print(detect_language("This is 那艘拉法基物品发阿飞En阿斯弗glish langdetect pycountry 段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中段中哈"))        # English
-print(detect_language("Bonjour le monde"))       # French
+with open("G:/PrismRerankerV1Data/step5_KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed_keywords.jsonl","r",encoding="utf8") as fr:
+    for line in fr:
+        item = json.loads(line)
+        if "keywords" in item:
+            print(item["keywords"])

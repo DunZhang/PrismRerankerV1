@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-from train.constants import DEFAULT_LORA_TARGET_MODULES
+from train_v2.constants import DEFAULT_LORA_TARGET_MODULES
 
 ALLOWED_DTYPES = {None, "bfloat16", "float16", "float32"}
 ALLOWED_SCHEDULERS = {"cosine", "linear"}
@@ -37,11 +37,10 @@ class LoraConfig:
 
 @dataclass
 class DataConfig:
-    train_file: str = ""
-    dev_dir: str = ""
+    sft_data_file: str = ""
+    point_wise_data_file: str = ""
+    sft_ratio: float = 0.3
     train_samples: int | None = None
-    eval_samples: int | None = 1000
-    eval_files: int | None = None
     num_workers: int = 0
     pin_memory: bool = True
 
@@ -54,32 +53,21 @@ class TrainingConfig:
     warmup_steps: int = 100
     lr_scheduler: str = "cosine"
     grad_accum_steps: int = 4
-    micro_batch_size: int = 2
     max_grad_norm: float = 1.0
     seed: int = 42
 
 
 @dataclass
 class LossConfig:
-    alpha_rank: float = 1.0
-    beta_list: float = 1.0
-    gamma_point: float = 0.5
-    temperature: float = 2.0
-    hard_neg_scale: float = 5.0
-
-
-@dataclass
-class EvaluationConfig:
-    interval_samples: int = 5000
-    num_neg: int | None = None
+    gamma_point: float = 1.0
+    gamma_sft: float = 1.0
 
 
 @dataclass
 class OutputConfig:
     dir: str = "./train/output"
-    run_name: str = "reranker-distill"
-    save_every_eval: bool = True
-    save_last_checkpoint: bool = False
+    run_name: str = "reranker-v2"
+    save_interval_samples: int = 5000
 
 
 @dataclass
@@ -95,7 +83,6 @@ SECTION_TYPES = {
     "data": DataConfig,
     "training": TrainingConfig,
     "loss": LossConfig,
-    "evaluation": EvaluationConfig,
     "output": OutputConfig,
     "logging": LoggingConfig,
 }
@@ -113,10 +100,10 @@ LEGACY_KEY_MAP: dict[str, tuple[str, str]] = {
     "lora_dropout": ("lora", "dropout"),
     "lora_target_modules": ("lora", "target_modules"),
     "use_rslora": ("lora", "use_rslora"),
-    "train_file": ("data", "train_file"),
-    "dev_dir": ("data", "dev_dir"),
+    "sft_data_file": ("data", "sft_data_file"),
+    "point_wise_data_file": ("data", "point_wise_data_file"),
+    "sft_ratio": ("data", "sft_ratio"),
     "train_samples": ("data", "train_samples"),
-    "eval_samples": ("data", "eval_samples"),
     "num_workers": ("data", "num_workers"),
     "pin_memory": ("data", "pin_memory"),
     "num_epochs": ("training", "num_epochs"),
@@ -127,16 +114,10 @@ LEGACY_KEY_MAP: dict[str, tuple[str, str]] = {
     "grad_accum_steps": ("training", "grad_accum_steps"),
     "max_grad_norm": ("training", "max_grad_norm"),
     "seed": ("training", "seed"),
-    "alpha_rank": ("loss", "alpha_rank"),
-    "beta_list": ("loss", "beta_list"),
     "gamma_point": ("loss", "gamma_point"),
-    "temperature": ("loss", "temperature"),
-    "hard_neg_scale": ("loss", "hard_neg_scale"),
-    "eval_interval": ("evaluation", "interval_samples"),
-    "num_neg": ("evaluation", "num_neg"),
+    "gamma_sft": ("loss", "gamma_sft"),
     "output_dir": ("output", "dir"),
     "run_name": ("output", "run_name"),
-    "save_last_checkpoint": ("output", "save_last_checkpoint"),
     "wandb_project": ("logging", "wandb_project"),
     "wandb_mode": ("logging", "wandb_mode"),
     "log_interval": ("logging", "log_interval_steps"),
@@ -208,7 +189,6 @@ class TrainConfig:
     data: DataConfig = field(default_factory=DataConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
     loss: LossConfig = field(default_factory=LossConfig)
-    evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
 
@@ -227,7 +207,6 @@ class TrainConfig:
             data=DataConfig(**normalized["data"]),
             training=TrainingConfig(**normalized["training"]),
             loss=LossConfig(**normalized["loss"]),
-            evaluation=EvaluationConfig(**normalized["evaluation"]),
             output=OutputConfig(**normalized["output"]),
             logging=LoggingConfig(**normalized["logging"]),
         )
@@ -237,10 +216,11 @@ class TrainConfig:
     def validate(self) -> None:
         if not self.model.path:
             raise ValueError("model.path is required.")
-        if not self.data.train_file:
-            raise ValueError("data.train_file is required.")
-        if not self.data.dev_dir:
-            raise ValueError("data.dev_dir is required.")
+        if not self.data.sft_data_file and not self.data.point_wise_data_file:
+            raise ValueError(
+                "At least one of data.sft_data_file or "
+                "data.point_wise_data_file is required."
+            )
         if self.model.dtype not in ALLOWED_DTYPES:
             raise ValueError(f"Unsupported model.dtype: {self.model.dtype}")
         if self.training.lr_scheduler not in ALLOWED_SCHEDULERS:
@@ -259,10 +239,8 @@ class TrainConfig:
             raise ValueError("data.num_workers must be >= 0.")
         if self.data.train_samples is not None and self.data.train_samples <= 0:
             raise ValueError("data.train_samples must be > 0 or null.")
-        if self.data.eval_samples is not None and self.data.eval_samples <= 0:
-            raise ValueError("data.eval_samples must be > 0 or null.")
-        if self.data.eval_files is not None and self.data.eval_files <= 0:
-            raise ValueError("data.eval_files must be > 0 or null.")
+        if not 0.0 <= self.data.sft_ratio <= 1.0:
+            raise ValueError("data.sft_ratio must be in [0.0, 1.0].")
         if self.training.num_epochs <= 0:
             raise ValueError("training.num_epochs must be > 0.")
         if self.training.learning_rate <= 0:
@@ -271,12 +249,10 @@ class TrainConfig:
             raise ValueError("training.warmup_steps must be >= 0.")
         if self.training.grad_accum_steps <= 0:
             raise ValueError("training.grad_accum_steps must be > 0.")
-        if self.training.micro_batch_size <= 0:
-            raise ValueError("training.micro_batch_size must be > 0.")
         if self.training.max_grad_norm < 0:
             raise ValueError("training.max_grad_norm must be >= 0.")
-        if self.evaluation.interval_samples <= 0:
-            raise ValueError("evaluation.interval_samples must be > 0.")
+        if self.output.save_interval_samples <= 0:
+            raise ValueError("output.save_interval_samples must be > 0.")
         if self.logging.log_interval_steps <= 0:
             raise ValueError("logging.log_interval_steps must be > 0.")
         if self.lora.enabled and self.lora.r <= 0:

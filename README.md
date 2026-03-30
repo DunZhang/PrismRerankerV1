@@ -26,3 +26,27 @@ claude	anthropic/claude-haiku-4.5_annotated_label
 
 
 uv run python -m process_data.annotate_relevance     --input_path /mnt/g/PrismRerankerV1Data/kalm_web-search_query_document_pairs.jsonl     --save_path /mnt/g/PrismRerankerV1Data/kalm_web-search_query_document_pairs_annotated.jsonl     --model openrouter/anthropic/claude-haiku-4.5     --max_rows 5000 --batch_size 8
+
+## 文件含义
+**注意：第一波数据没有严格按照这个顺序来，而且也包含了一些实验性的东西，所以没法一一对应，只能保证靠后的文件是标准的格式，后期如果想从某个数据再做操作，需要专门处理**
+step1_process_kalm：处理最原始的kalm
+
+step2_**_web_search: 给query搜索topk，放到extra里
+
+step3_reprocess_web_search_data: 重新处理整理topk数据，主要是新增web_search_topk_docs，如何获取topk是个有意思的事情，而且一定要想好，重新做代价大，因为做完之后，后面就要去得到重排模型的得分了
+
+step4_get_rerank_teacher_scores: 获取voyage reranker的得分
+
+step5_query_to_keywords: 随机选取一部分问题，去把它变成关键词组合查询的形式,就可以作为纯蒸馏重排模型的数据了，所以这是一个非常重要的中间点。
+
+
+==============================================
+
+step6_extract_query_document_pair_from_topk_data: 获取（query,document，score）对，用于后续标注处理
+
+step7_annotate_relevance: 使用不同的llm进行打标，一个大模型会占用一行，所以最终会产生很多冗余的行数
+
+step8_merge_annotations: 因为上面讲有冗余，所以说这个代码是专门做合并的，速度很快
+
+step9_generate_contribution_evidence: 取那些标注为 yes 的 query document pair 对，去生成 contribution 和 evidence
+

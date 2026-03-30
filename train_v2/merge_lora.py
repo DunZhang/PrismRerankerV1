@@ -18,7 +18,7 @@ def merge_and_save(
     print(f"Loading base model from: {base_model_path}")
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_path,
-        dtype=torch.bfloat16,
+        torch_dtype=torch.bfloat16,
         device_map="cpu",
     )
 
@@ -40,8 +40,8 @@ def merge_and_save(
 
 if __name__ == "__main__":
     merge_and_save(
-        base_model_path="/mnt/data/public_models/Qwen3-Reranker-0.6B",
-        adapter_path="/mnt/data/train_output/test1_baseline/samples-8000/",
+        base_model_path="/mnt/d/PublicModels/Qwen3-Reranker-0.6B",
+        adapter_path="/mnt/g/train_output/v2_test/samples-4500/",
         # output_path="/mnt/data/train_output/test1_baseline/samples-400_megred_lora",
-         output_path="/root/samples-8000_megred_lora",
+        output_path="/mnt/g/train_output/v2_test/samples-4500-merged",
     )

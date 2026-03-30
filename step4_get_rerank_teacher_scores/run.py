@@ -1,12 +1,12 @@
 """CLI entry point for batch teacher-score generation.
 
 Usage:
-  uv run python -m get_rerank_teacher_scores \\
+  uv run python -m step4_get_rerank_teacher_scores \\
       --read_path /path/to/input.jsonl \\
       --save_path /path/to/output.jsonl \\
       --model_name voyage-rerank-2
 
- uv run python -m get_rerank_teacher_scores  --read_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed.jsonl --save_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed-T2.5.jsonl  --model_name voyage-rerank-2.5     --target_doc_field web_search_topk_docs
+ uv run python -m step4_get_rerank_teacher_scores  --read_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed.jsonl --save_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed-T2.5.jsonl  --model_name voyage-rerank-2.5     --target_doc_field web_search_topk_docs
 
 Supported model names:
   voyage-rerank-2          Voyage AI rerank-2

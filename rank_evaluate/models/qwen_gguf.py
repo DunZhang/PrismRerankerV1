@@ -23,7 +23,7 @@ Template format (from official model card):
 
 import math
 
-from shared.prompts import DEFAULT_EVAL_INSTRUCTION, render_raw_prompt
+from shared.prompts import DEFAULT_EVAL_INSTRUCTION, ORIGINAL_SYSTEM_PROMPT, render_raw_prompt
 
 from .base import BaseReranker
 
@@ -84,6 +84,7 @@ class QwenGGUFReranker(BaseReranker):
             query,
             document,
             instruction=self._instruction,
+            system_prompt=ORIGINAL_SYSTEM_PROMPT,
         )
         result = self._llm.create_completion(
             prompt,

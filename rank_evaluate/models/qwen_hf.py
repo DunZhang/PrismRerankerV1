@@ -25,7 +25,7 @@ Template format (from official model card):
 
 import torch
 
-from shared.prompts import DEFAULT_EVAL_INSTRUCTION, render_raw_prompt
+from shared.prompts import DEFAULT_EVAL_INSTRUCTION, ORIGINAL_SYSTEM_PROMPT, render_raw_prompt
 
 from .base import BaseReranker
 
@@ -99,7 +99,10 @@ class QwenHFReranker(BaseReranker):
     def rerank(self, query: str, documents: list[str]) -> list[float]:
         """Score all documents, batching by similar length to minimise padding."""
         prompts = [
-            render_raw_prompt(query, doc, instruction=self._instruction)
+            render_raw_prompt(
+                query, doc, instruction=self._instruction,
+                system_prompt=ORIGINAL_SYSTEM_PROMPT,
+            )
             for doc in documents
         ]
 

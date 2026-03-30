@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 
-from shared.prompts import DEFAULT_EVAL_INSTRUCTION, render_raw_prompt
+from shared.prompts import DEFAULT_EVAL_INSTRUCTION, ORIGINAL_SYSTEM_PROMPT, render_raw_prompt
 
 from .base import BaseReranker
 
@@ -85,7 +85,10 @@ class QwenVLLMReranker(BaseReranker):
 
         prompts = []
         for doc in documents:
-            raw = render_raw_prompt(query, doc, instruction=self._instruction)
+            raw = render_raw_prompt(
+                query, doc, instruction=self._instruction,
+                system_prompt=ORIGINAL_SYSTEM_PROMPT,
+            )
             ids = self._tokenizer.encode(raw, add_special_tokens=False)
             ids = ids[: self._max_length]
             prompts.append(TokensPrompt(prompt_token_ids=ids))

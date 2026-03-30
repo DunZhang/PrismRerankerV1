@@ -72,17 +72,33 @@ def merge(input_path: Path, save_path: Path) -> None:
                     seen_models.add(model_name)
                     model_names.append(model_name)
 
-    # Write merged output
+    # Write merged output – only keep rows where all required models have labels
     total_out = 0
+    skipped = 0
+    required_models = {col.removesuffix("_annotated_label") for col in MODELS}
     with open(save_path, "w", encoding="utf-8") as f:
         for base, labels in rows.values():
+            # Skip if any required model has no label
+            if any(labels.get(mn) is None for mn in required_models):
+                skipped += 1
+                continue
             out = dict(base)
-            for mn in model_names:
-                out[f"{mn}_annotated_label"] = labels.get(mn)
+            score = out.get("voyage-rerank-2_and_2.5_score")
+            if score is not None:
+                out["revised_score"] = score ** 1.609
+            for mn in required_models:
+                out[f"{mn}_annotated_label"] = labels[mn]
+            yes_count = sum(
+                1 for mn in required_models if labels[mn] == "yes"
+            )
+            out["annotated_label"] = "yes" if yes_count > 2 else "no"
+            out["annotated_score"] = yes_count / 5
             f.write(json.dumps(out, ensure_ascii=False) + "\n")
             total_out += 1
 
     print(f"Models found: {model_names}", file=sys.stderr)
+    print(f"Required models: {sorted(required_models)}", file=sys.stderr)
+    print(f"Skipped (incomplete): {skipped}", file=sys.stderr)
     print(
         f"Done: {total_in} input rows -> {total_out} merged rows",
         file=sys.stderr,
