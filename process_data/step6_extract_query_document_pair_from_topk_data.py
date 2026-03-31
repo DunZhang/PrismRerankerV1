@@ -19,9 +19,9 @@ import tiktoken
 # ── 配置 ──────────────────────────────────────────────────────────────
 INPUT_FILE = Path(
     "/mnt/g/PrismRerankerV1Data/"
-    "KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed_keywords.jsonl"
+    "step5_KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed_keywords.jsonl"
 )
-OUTPUT_FILE = INPUT_FILE.parent / "kalm_web-search_query_document_pairs.jsonl"
+OUTPUT_FILE = INPUT_FILE.parent / "step6_kalm_web-search_query_document_pairs.jsonl"
 BUCKET_WIDTH = 0.05
 DISCARD_IF_EXCEEDS_TOKENS = 8192  # query+doc 超过此 token 数则丢弃整条
 TRUNCATE_DOC_TO_TOKENS = 4096  # document 超过此 token 数则截断到该长度
@@ -30,6 +30,11 @@ SOURCE_RATIO_POSNEG = 2  # pos+neg 占比
 BUCKET_MIN_RATIO = 0.8  # 中间桶的最小/最大数量比 ≥ 此值
 EXTREME_BUCKET_LO = 0.20  # 低于此分数的桶视为极端桶（有多少用多少）
 EXTREME_BUCKET_HI = 0.95  # 高于此分数的桶视为极端桶（有多少用多少）
+# 桶数量倍率：分数 >= 阈值的中间桶，采样数量乘以对应倍率
+# 格式 (score_threshold, multiplier)，按阈值从高到低匹配第一个命中的
+BUCKET_MULTIPLIERS: list[tuple[float, float]] = [
+    (0.65, 1.7),
+]
 SEED = 42
 
 ENCODING = tiktoken.get_encoding("cl100k_base")
@@ -57,40 +62,59 @@ def _is_extreme_bucket(bucket_id: int) -> bool:
     return lo < EXTREME_BUCKET_LO or lo >= EXTREME_BUCKET_HI
 
 
+def _bucket_multiplier(bucket_id: int) -> float:
+    """返回桶的数量倍率（按 BUCKET_MULTIPLIERS 从高到低匹配）。"""
+    lo = bucket_id * BUCKET_WIDTH
+    for threshold, multiplier in sorted(BUCKET_MULTIPLIERS, reverse=True):
+        if lo >= threshold:
+            return multiplier
+    return 1.0
+
+
 def balanced_sample(
     pairs: list[QueryDocScore],
     rng: random.Random,
 ) -> list[QueryDocScore]:
-    """按分数分桶，极端桶全部保留，中间桶用 BUCKET_MIN_RATIO 约束最大化采样。"""
+    """按分数分桶，极端桶全部保留，中间桶用 BUCKET_MIN_RATIO 约束最大化采样。
+
+    每个中间桶的采样上限 = base_cap * multiplier，其中 multiplier
+    由 BUCKET_MULTIPLIERS 配置决定。base_cap 的计算保证所有中间桶
+    的实际数量/目标上限 >= BUCKET_MIN_RATIO。
+    """
     buckets: dict[int, list[QueryDocScore]] = defaultdict(list)
     for item in pairs:
         buckets[score_to_bucket(item[2])].append(item)
 
     # 分离极端桶和中间桶
-    extreme: dict[int, list[QueryDocScore]] = {}
     middle: dict[int, list[QueryDocScore]] = {}
     for bid, items in buckets.items():
-        if _is_extreme_bucket(bid):
-            extreme[bid] = items
-        else:
+        if not _is_extreme_bucket(bid):
             middle[bid] = items
 
-    # 中间桶：cap = min_size / BUCKET_MIN_RATIO，确保最小桶/cap >= 0.8
+    # 中间桶：base_cap = min(size_i / mult_i) / BUCKET_MIN_RATIO
+    # 每个桶的 cap_i = base_cap * mult_i
     if middle:
-        min_size = min(len(v) for v in middle.values())
-        cap = int(min_size / BUCKET_MIN_RATIO)
+        base_cap = int(
+            min(
+                len(items) / _bucket_multiplier(bid)
+                for bid, items in middle.items()
+            )
+            / BUCKET_MIN_RATIO
+        )
     else:
-        cap = 0
+        base_cap = 0
 
     sampled: list[QueryDocScore] = []
     for bucket_id in sorted(buckets):
         items = buckets[bucket_id]
         if _is_extreme_bucket(bucket_id):
             sampled.extend(items)  # 极端桶全部保留
-        elif len(items) > cap:
-            sampled.extend(rng.sample(items, cap))
         else:
-            sampled.extend(items)
+            cap = int(base_cap * _bucket_multiplier(bucket_id))
+            if len(items) > cap:
+                sampled.extend(rng.sample(items, cap))
+            else:
+                sampled.extend(items)
     return sampled
 
 

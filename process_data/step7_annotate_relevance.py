@@ -67,6 +67,11 @@ def _compute_pair_hash(query: str, document: str, model_name: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def _compute_pair_only_hash(query: str, document: str) -> str:
+    """Hash key = sha256(query + document), ignoring model_name."""
+    return hashlib.sha256(f"{query}\n{document}".encode("utf-8")).hexdigest()
+
+
 def _derive_model_name(model: str) -> str:
     """Strip provider prefix: 'deepseek/deepseek-chat' -> 'deepseek-chat'."""
     if "/" in model:
@@ -115,6 +120,33 @@ def _load_done_hashes(save_path: Path, model_name: str) -> set[str]:
                 continue
     log.info("Cache: %d completed entries for model %s", len(done), model_name)
     return done
+
+
+def _load_vote_counts(save_path: Path) -> dict[str, tuple[int, int]]:
+    """Scan output file, return per-pair (yes_count, no_count) across all models."""
+    counts: dict[str, list[int]] = {}  # hash -> [yes, no]
+    if not save_path.exists() or save_path.stat().st_size == 0:
+        return {}
+    with open(save_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+                label = row.get("annotated_label")
+                if label not in ("yes", "no"):
+                    continue
+                h = _compute_pair_only_hash(row["query"], row["document"])
+                if h not in counts:
+                    counts[h] = [0, 0]
+                if label == "yes":
+                    counts[h][0] += 1
+                else:
+                    counts[h][1] += 1
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+    return {h: (v[0], v[1]) for h, v in counts.items()}
 
 
 def _append_rows(rows: list[dict[str, Any]], save_path: Path) -> None:
@@ -377,15 +409,26 @@ def process(
     # Load cache: hashes of already-completed annotations
     done_hashes = _load_done_hashes(save_path, model_name)
 
+    # Load vote counts across all models for early-majority skip
+    vote_counts = _load_vote_counts(save_path)
+
     # Find pending rows
     pending: list[int] = []
+    majority_decided = 0
     for idx in range(scan_limit):
         row = input_rows[idx]
         h = _compute_pair_hash(row["query"], row["document"], model_name)
-        if h not in done_hashes:
-            pending.append(idx)
+        if h in done_hashes:
+            continue
+        # Skip if majority already decided (>=3 yes or >=3 no)
+        ph = _compute_pair_only_hash(row["query"], row["document"])
+        votes = vote_counts.get(ph)
+        if votes is not None and (votes[0] >= 3 or votes[1] >= 3):
+            majority_decided += 1
+            continue
+        pending.append(idx)
 
-    already_done = scan_limit - len(pending)
+    already_done = scan_limit - len(pending) - majority_decided
 
     log.info("=" * 60)
     log.info("Relevance Annotation")
@@ -398,6 +441,7 @@ def process(
     log.info("Total input rows: %d", len(input_rows))
     log.info("Scan limit:       %s", scan_limit if max_rows else "all")
     log.info("Already done:     %d", already_done)
+    log.info("Majority decided: %d (skipped)", majority_decided)
     log.info("Pending:          %d", len(pending))
     log.info("-" * 60)
 
