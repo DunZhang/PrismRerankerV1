@@ -72,33 +72,46 @@ def merge(input_path: Path, save_path: Path) -> None:
                     seen_models.add(model_name)
                     model_names.append(model_name)
 
-    # Write merged output – only keep rows where all required models have labels
+    # Write merged output – keep rows where yes or no votes > 2
     total_out = 0
+    total_yes = 0
+    total_no = 0
     skipped = 0
     required_models = {col.removesuffix("_annotated_label") for col in MODELS}
     with open(save_path, "w", encoding="utf-8") as f:
         for base, labels in rows.values():
-            # Skip if any required model has no label
-            if any(labels.get(mn) is None for mn in required_models):
+            # Count yes/no votes from available models
+            voted = {
+                mn: labels[mn]
+                for mn in required_models
+                if labels.get(mn) is not None
+            }
+            yes_count = sum(1 for v in voted.values() if v == "yes")
+            no_count = sum(1 for v in voted.values() if v == "no")
+            # Skip if neither yes nor no has majority (> 2)
+            if yes_count <= 2 and no_count <= 2:
                 skipped += 1
                 continue
             out = dict(base)
+            out.pop("annotated_score", None)
             score = out.get("voyage-rerank-2_and_2.5_score")
             if score is not None:
                 out["revised_score"] = score ** 1.609
             for mn in required_models:
-                out[f"{mn}_annotated_label"] = labels[mn]
-            yes_count = sum(
-                1 for mn in required_models if labels[mn] == "yes"
-            )
-            out["annotated_label"] = "yes" if yes_count > 2 else "no"
-            out["annotated_score"] = yes_count / 5
+                out[f"{mn}_annotated_label"] = labels.get(mn)
+            final_label = "yes" if yes_count > no_count else "no"
+            out["annotated_label"] = final_label
+            if final_label == "yes":
+                total_yes += 1
+            else:
+                total_no += 1
             f.write(json.dumps(out, ensure_ascii=False) + "\n")
             total_out += 1
 
     print(f"Models found: {model_names}", file=sys.stderr)
     print(f"Required models: {sorted(required_models)}", file=sys.stderr)
-    print(f"Skipped (incomplete): {skipped}", file=sys.stderr)
+    print(f"Skipped (no majority): {skipped}", file=sys.stderr)
+    print(f"Label distribution: yes={total_yes}, no={total_no}", file=sys.stderr)
     print(
         f"Done: {total_in} input rows -> {total_out} merged rows",
         file=sys.stderr,

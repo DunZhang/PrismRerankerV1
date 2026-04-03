@@ -29,10 +29,10 @@ from shared.env import DEFAULT_PROJECT_ENV_FILE, load_optional_dotenv
 log = logging.getLogger("annotate_relevance")
 
 DEFAULT_INPUT_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/kalm_web-search_query_document_pairs.jsonl"
+    "/mnt/g/PrismRerankerV1Data/step6_kalm_web-search_query_document_pairs.jsonl"
 )
 DEFAULT_SAVE_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/kalm_web-search_query_document_pairs_annotated.jsonl"
+    "/mnt/g/PrismRerankerV1Data/step7_kalm_web-search_query_document_pairs_annotated.jsonl"
 )
 TEMPLATE_PATH = (
     Path(__file__).resolve().parents[1] / "shared" / "templates" / "relevance_judge.j2"

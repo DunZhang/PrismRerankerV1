@@ -2,16 +2,19 @@
 
 
 ## llm打标命令行
-supported models:
+supported models,一定要按照这个顺序来，因为价格是由低到高来的，这样可以省很多钱:
 deepseek/deepseek-chat
-openrouter/google/gemini-3-flash-preview
-moonshot/kimi-k2.5
-openrouter/openai/gpt-5.4-mini：没办法关thinking，所以可以跑第二次把最大token数设置成256,然后继续512，1024
 bailian/qwen3.5-397b-a17b
+openrouter/google/gemini-3-flash-preview
 openrouter/anthropic/claude-haiku-4.5
-zhipu/glm-5
+openrouter/openai/gpt-5.4-mini：没办法关thinking，所以可以跑第二次把最大token数设置成256,然后继续512，1024
 
-最终选择：
+
+
+zhipu/glm-5
+moonshot/kimi-k2.5
+
+### 最终选择：
 deepseek: 0.64（最独立）
 gpt5.4m: 0.70
 gemini: 0.72
@@ -25,7 +28,7 @@ qwen3.5	qwen3.5-397b-a17b_annotated_label
 claude	anthropic/claude-haiku-4.5_annotated_label
 
 
-uv run python -m process_data.annotate_relevance     --input_path /mnt/g/PrismRerankerV1Data/kalm_web-search_query_document_pairs.jsonl     --save_path /mnt/g/PrismRerankerV1Data/kalm_web-search_query_document_pairs_annotated.jsonl     --model openrouter/anthropic/claude-haiku-4.5     --max_rows 5000 --batch_size 8
+uv run python -m process_data.step7_annotate_relevance     --input_path /mnt/g/PrismRerankerV1Data/step6_kalm_web-search_query_document_pairs.jsonl     --save_path /mnt/g/PrismRerankerV1Data/step7_kalm_web-search_query_document_pairs_annotated.jsonl     --model openrouter/openai/gpt-5.4-mini  --max_rows 5000 --batch_size 8
 
 ## 文件含义
 **注意：第一波数据没有严格按照这个顺序来，而且也包含了一些实验性的东西，所以没法一一对应，只能保证靠后的文件是标准的格式，后期如果想从某个数据再做操作，需要专门处理**

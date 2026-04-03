@@ -36,6 +36,7 @@ dependencies = [
     "langdetect>=1.0.9",
     "pycountry>=26.2.16",
     "streamlit>=1.55.0",
+    "lingua-language-detector>=2.2.0",
 ]
 
 [[tool.uv.index]]

@@ -513,6 +513,17 @@ class RerankerTrainer:
                 progress=progress,
             )
 
+            # Save checkpoint at the end of each epoch
+            if self.accelerator.is_main_process:
+                save_model_bundle(
+                    self.model,
+                    self.tokenizer,
+                    self.cfg,
+                    self.output_dir / f"epoch-{epoch_number}",
+                    self.accelerator,
+                )
+            self.accelerator.wait_for_everyone()
+
         # ---- Final save & cleanup ----
         if self.accelerator.is_main_process:
             if self.wandb_run is not None:
