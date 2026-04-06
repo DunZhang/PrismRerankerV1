@@ -28,7 +28,9 @@ qwen3.5	qwen3.5-397b-a17b_annotated_label
 claude	anthropic/claude-haiku-4.5_annotated_label
 
 
-uv run python -m process_data.step7_annotate_relevance     --input_path /mnt/g/PrismRerankerV1Data/step6_kalm_web-search_query_document_pairs.jsonl     --save_path /mnt/g/PrismRerankerV1Data/step7_kalm_web-search_query_document_pairs_annotated.jsonl     --model openrouter/openai/gpt-5.4-mini  --max_rows 5000 --batch_size 8
+uv run python -m process_data_extend2.step7_annotate_relevance     --input_path /mnt/g/PrismRerankerV1Data/data_extend2/step6_expanded2_web-search_query_document_pairs.jsonl     --save_path /mnt/g/PrismRerankerV1Data/data_extend2/step7_expanded2_web-search_query_document_pairs_annotated.jsonl     --model openrouter/openai/gpt-5.4-mini  --max_rows 10000 --batch_size 8
+
+uv run python -m process_data.step7_annotate_relevance     --input_path /mnt/g/PrismRerankerV1Data/step6_kalm_web-search_query_document_pairs_no_medical.jsonl     --save_path /mnt/g/PrismRerankerV1Data/step7_kalm_web-search_query_document_pairs_annotated.jsonl     --model openrouter/openai/gpt-5.4-mini  --max_rows 6500 --batch_size 16
 
 ## 文件含义
 **注意：第一波数据没有严格按照这个顺序来，而且也包含了一些实验性的东西，所以没法一一对应，只能保证靠后的文件是标准的格式，后期如果想从某个数据再做操作，需要专门处理**

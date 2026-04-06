@@ -6,7 +6,9 @@ Usage:
       --save_path /path/to/output.jsonl \\
       --model_name voyage-rerank-2
 
- uv run python -m step4_get_rerank_teacher_scores  --read_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed.jsonl --save_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed-T2.5.jsonl  --model_name voyage-rerank-2.5     --target_doc_field web_search_topk_docs
+ uv run python -m step4_get_rerank_teacher_scores  --read_path /mnt/g/PrismRerankerV1Data/data_extend2/step2_expanded2_web_search-processed.jsonl  --save_path /mnt/g/PrismRerankerV1Data/data_extend2/step4_expanded2_web_search-processed-Rerank2.5.jsonl  --model_name voyage-rerank-2.5     --target_doc_field web_search_topk_docs
+
+  uv run python -m step4_get_rerank_teacher_scores  --read_path /mnt/g/PrismRerankerV1Data/data_extend2/step4_expanded2_web_search-processed-Rerank2.5.jsonl  --save_path /mnt/g/PrismRerankerV1Data/data_extend2/step4_expanded2_web_search-processed-Rerank2.5-Rerank2.jsonl  --model_name voyage-rerank-2     --target_doc_field web_search_topk_docs
 
 Supported model names:
   voyage-rerank-2          Voyage AI rerank-2
@@ -41,17 +43,8 @@ def _setup_logging(verbose: bool = False) -> None:
 
 
 def _compute_row_hash(row: dict) -> str:
-    """Deterministic hash from query + pos_list + neg_list."""
-    content = json.dumps(
-        {
-            "query": row["query"],
-            "pos_list": row["pos_list"],
-            "neg_list": row["neg_list"],
-        },
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-    return hashlib.sha256(content.encode()).hexdigest()[:16]
+    """Deterministic hash from query."""
+    return hashlib.sha256(row["query"].encode()).hexdigest()[:16]
 
 
 def _load_done_hashes(save_path: Path, score_keys: list[str]) -> set[str]:

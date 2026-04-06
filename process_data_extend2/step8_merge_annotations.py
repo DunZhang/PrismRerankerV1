@@ -18,8 +18,8 @@ from pathlib import Path
 from typing import Any
 
 # ============ 修改这里 ============
-INPUT_PATH = Path("/mnt/g/PrismRerankerV1Data/step7_kalm_web-search_query_document_pairs_annotated.jsonl")
-SAVE_PATH = Path("/mnt/g/PrismRerankerV1Data/step8_kalm_web-search_query_document_pairs_annotated_merged.jsonl")
+INPUT_PATH = Path("/mnt/g/PrismRerankerV1Data/data_extend2/step7_expanded2_web-search_query_document_pairs_annotated.jsonl")
+SAVE_PATH = Path("/mnt/g/PrismRerankerV1Data/data_extend2/step8_expanded2_web-search_query_document_pairs_annotated_merged.jsonl")
 # =================================
 
 MODELS = [

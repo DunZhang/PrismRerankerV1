@@ -1,7 +1,7 @@
 """Augment KaLM JSONL rows with Tavily web search results.
 
 Usage:
-uv run python -m process_data.tavily_web_search \
+uv run python -m process_data_extend2.step2_tavily_web_search \
     --read_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5.jsonl \
     --save_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web_search.jsonl
 
@@ -43,15 +43,15 @@ from shared.env import DEFAULT_PROJECT_ENV_FILE, load_optional_dotenv
 log = logging.getLogger("tavily_web_search")
 
 DEFAULT_READ_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/"
-    "KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5.jsonl"
+    "/mnt/g/PrismRerankerV1Data/data_extend2/"
+    "queries_from_instructions.jsonl"
 )
 DEFAULT_SAVE_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/"
-    "KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web_search.jsonl"
+    "/mnt/g/PrismRerankerV1Data/data_extend2/"
+    "step2_expanded2_web_search.jsonl"
 )
 
-KEY_LIMIT = 650
+KEY_LIMIT = 220
 KEY_RPM = 100
 TAVILY_MAX_QUERY_LEN = 395
 TAVILY_ENV_RE = re.compile(r"^TAVILY_API_KEY_(\d+)$")
@@ -171,11 +171,7 @@ def _fmt_duration(seconds: float) -> str:
 
 def _compute_row_hash(row: dict[str, Any]) -> str:
     content = json.dumps(
-        {
-            "query": row["query"],
-            "pos_list": row["pos_list"],
-            "neg_list": row["neg_list"],
-        },
+        {"query": row["query"]},
         ensure_ascii=False,
         sort_keys=True,
     )

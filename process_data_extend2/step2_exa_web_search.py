@@ -1,20 +1,20 @@
-"""Augment KaLM JSONL rows with Tavily web search results.
+"""Augment KaLM JSONL rows with Exa web search results.
 
 Usage:
-uv run python -m process_data.tavily_web_search \
+uv run python -m process_data.exa_web_search \
     --read_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5.jsonl \
     --save_path /mnt/g/PrismRerankerV1Data/KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web_search.jsonl
 
 Behavior:
 - Reads the input JSONL line by line.
-- Uses ``query`` to call Tavily search.
-- Adds ``tavily_topk`` and ``extra.original_tavily_result`` to each written row.
+- Uses ``query`` to call Exa search.
+- Adds ``extra.original_exa_result`` to each written row.
 - Appends to the output file incrementally and supports resume via row hash.
-- Rotates across all ``TAVILY_API_KEY_{idx}`` keys from ``.env``.
-- Each key is reserved at most 980 times across resumptions.
+- Skips rows already present in the output file (any API's result counts).
+- Rotates across all ``EXA_API_KEY_{idx}`` keys from ``.env``.
+- Each key is reserved at most KEY_LIMIT times per run.
 
 Note:
-The current ``.env`` may not have enough total Tavily quota for the whole input.
 When all keys reach the configured per-key cap, the script stops cleanly and can
 resume later after more keys are added to ``.env``.
 """
@@ -32,7 +32,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -40,47 +40,47 @@ from tqdm import tqdm
 
 from shared.env import DEFAULT_PROJECT_ENV_FILE, load_optional_dotenv
 
-log = logging.getLogger("tavily_web_search")
+log = logging.getLogger("exa_web_search")
 
 DEFAULT_READ_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/"
-    "KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5.jsonl"
+    "/mnt/g/PrismRerankerV1Data/data_extend2/"
+    "queries_from_instructions.jsonl"
 )
 DEFAULT_SAVE_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/"
-    "KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web_search.jsonl"
+    "/mnt/g/PrismRerankerV1Data/data_extend2/"
+    "step2_expanded2_web_search.jsonl"
 )
 
-KEY_LIMIT = 650
-KEY_RPM = 100
-TAVILY_MAX_QUERY_LEN = 395
-TAVILY_ENV_RE = re.compile(r"^TAVILY_API_KEY_(\d+)$")
+
+KEY_LIMIT = 1800
+KEY_RPM = 120
+EXA_ENV_RE = re.compile(r"^EXA_API_KEY_(\d+)$")
 
 
 @dataclass(frozen=True)
-class TavilyKey:
+class ExaKey:
     index: int
     name: str
     value: str
 
 
-class TavilyKeyAllocator:
+class ExaKeyAllocator:
     """Round-robin allocator with a hard per-key reservation cap."""
 
     def __init__(
         self,
-        keys: list[TavilyKey],
+        keys: list[ExaKey],
         key_usage: dict[str, int],
         next_cursor: int = 0,
     ) -> None:
         if not keys:
-            raise ValueError("At least one Tavily key is required.")
+            raise ValueError("At least one Exa key is required.")
         self.keys = keys
         self.key_usage = {key.name: int(key_usage.get(key.name, 0)) for key in keys}
         self.next_cursor = next_cursor % len(keys)
         self.runtime_disabled_keys: set[str] = set()
 
-    def reserve(self) -> TavilyKey | None:
+    def reserve(self) -> ExaKey | None:
         for offset in range(len(self.keys)):
             idx = (self.next_cursor + offset) % len(self.keys)
             key = self.keys[idx]
@@ -119,6 +119,7 @@ class TavilyKeyAllocator:
             and self.key_usage[key.name] < KEY_LIMIT
             for key in self.keys
         )
+
 
 class _PerKeyRateLimiter:
     """Thread-safe sliding-window rate limiter, one window per API key."""
@@ -171,11 +172,7 @@ def _fmt_duration(seconds: float) -> str:
 
 def _compute_row_hash(row: dict[str, Any]) -> str:
     content = json.dumps(
-        {
-            "query": row["query"],
-            "pos_list": row["pos_list"],
-            "neg_list": row["neg_list"],
-        },
+        {"query": row["query"]},
         ensure_ascii=False,
         sort_keys=True,
     )
@@ -211,59 +208,49 @@ def _load_done_hashes(save_path: Path) -> set[str]:
     return done
 
 
-def _load_tavily_keys() -> list[TavilyKey]:
-    keys: list[TavilyKey] = []
+def _load_exa_keys() -> list[ExaKey]:
+    keys: list[ExaKey] = []
     for env_name, env_value in os.environ.items():
-        match = TAVILY_ENV_RE.fullmatch(env_name)
+        match = EXA_ENV_RE.fullmatch(env_name)
         if not match or not env_value:
             continue
         keys.append(
-            TavilyKey(index=int(match.group(1)), name=env_name, value=env_value.strip())
+            ExaKey(index=int(match.group(1)), name=env_name, value=env_value.strip())
         )
     keys.sort(key=lambda item: item.index)
     return keys
 
 
-def _new_allocator(keys: list[TavilyKey]) -> TavilyKeyAllocator:
+def _new_allocator(keys: list[ExaKey]) -> ExaKeyAllocator:
     """Create a fresh allocator with zero usage (per-run counting)."""
-    return TavilyKeyAllocator(
+    return ExaKeyAllocator(
         keys=keys,
         key_usage={key.name: 0 for key in keys},
     )
 
 
-def _search_with_tavily(api_key: str, query: str) -> dict[str, Any]:
+def _search_with_exa(api_key: str, query: str) -> dict[str, Any]:
     try:
-        from tavily import TavilyClient
+        from exa_py import Exa
     except ImportError as exc:  # pragma: no cover - runtime environment dependent
         raise RuntimeError(
-            "Missing dependency: tavily-python. Install it with "
-            "`uv pip install tavily-python` or refresh the project environment."
+            "Missing dependency: exa-py. Install it with `uv add exa-py`."
         ) from exc
-
-    if len(query) > TAVILY_MAX_QUERY_LEN:
-        query = query[:TAVILY_MAX_QUERY_LEN]
 
     _rate_limiter.acquire(api_key)
 
-    client = TavilyClient(api_key)
-    response = client.search(
-        query=query,
-        include_answer="advanced",
-        search_depth="basic",
-        max_results=20,
-        include_raw_content="markdown",
-        chunks_per_source=1,
+    exa = Exa(api_key)
+    result = exa.search(
+        query,
+        num_results=10,
+        type="auto",
+        contents={"text": {"verbosity": "compact"}},
     )
-    if not isinstance(response, dict):
-        raise TypeError(
-            f"Tavily returned {type(response).__name__}, expected a dict response."
-        )
-    return response
+    return asdict(result)
 
 
 def _is_usage_limit_error(exc: Exception) -> bool:
-    if exc.__class__.__name__ == "UsageLimitExceededError":
+    if exc.__class__.__name__ in ("UsageLimitExceededError", "ExaUsageLimitError"):
         return True
 
     message = str(exc).lower()
@@ -279,6 +266,7 @@ def _is_usage_limit_error(exc: Exception) -> bool:
 
 def _augment_row(
     row: dict[str, Any],
+    row_hash: str,  # noqa: ARG001
     response: dict[str, Any],
 ) -> dict[str, Any]:
     out_row = dict(row)
@@ -291,19 +279,19 @@ def _augment_row(
     else:
         extra = dict(extra)
 
-    extra["original_tavily_result"] = response
+    extra["original_exa_result"] = response
     out_row["extra"] = extra
     return out_row
 
 
 def _process_batch(
     batch: list[tuple[str, dict[str, Any]]],
-    allocator: TavilyKeyAllocator,
+    allocator: ExaKeyAllocator,
     max_workers: int,
     fout,  # noqa: ANN001
     done_hashes: set[str],
 ) -> tuple[int, int, bool]:
-    reservations: list[tuple[str, dict[str, Any], TavilyKey]] = []
+    reservations: list[tuple[str, dict[str, Any], ExaKey]] = []
     exhausted = False
 
     for row_hash, row in batch:
@@ -320,7 +308,7 @@ def _process_batch(
     worker_count = min(max_workers, len(reservations))
     with ThreadPoolExecutor(max_workers=worker_count) as pool:
         future_to_request = {
-            pool.submit(_search_with_tavily, key.value, row["query"]): (row_hash, key)
+            pool.submit(_search_with_exa, key.value, row["query"]): (row_hash, key)
             for row_hash, row, key in reservations
         }
         for future in as_completed(future_to_request):
@@ -332,7 +320,7 @@ def _process_batch(
                 if _is_usage_limit_error(exc):
                     if allocator.disable_for_current_run(key.name):
                         log.warning(
-                            "Tavily quota exhausted for key=%s; disabling it for the "
+                            "Exa quota exhausted for key=%s; disabling it for the "
                             "rest of this run.",
                             key.name,
                         )
@@ -344,7 +332,7 @@ def _process_batch(
         if isinstance(result, Exception):
             failed += 1
             log.warning(
-                "Tavily search failed for key=%s query=%r: %s: %s",
+                "Exa search failed for key=%s query=%r: %s: %s",
                 key.name,
                 row.get("query", "")[:80],
                 type(result).__name__,
@@ -352,7 +340,7 @@ def _process_batch(
             )
             continue
 
-        out_row = _augment_row(row=row, response=result)
+        out_row = _augment_row(row=row, row_hash=row_hash, response=result)
         fout.write(json.dumps(out_row, ensure_ascii=False) + "\n")
         done_hashes.add(row_hash)
         written += 1
@@ -378,9 +366,9 @@ def process(
 
     load_optional_dotenv(env_file=env_file, default_env_file=DEFAULT_PROJECT_ENV_FILE)
 
-    keys = _load_tavily_keys()
+    keys = _load_exa_keys()
     if not keys:
-        log.error("No TAVILY_API_KEY_{idx} keys found in environment or .env.")
+        log.error("No EXA_API_KEY_{idx} keys found in environment or .env.")
         sys.exit(1)
 
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -393,13 +381,13 @@ def process(
     remaining_rows = max(total_rows - len(done_hashes), 0)
 
     log.info("=" * 60)
-    log.info("Tavily Web Search Augmentation")
+    log.info("Exa Web Search Augmentation")
     log.info("=" * 60)
     log.info("Input:            %s", read_path)
     log.info("Output:           %s", save_path)
     log.info("Batch size:       %d", batch_size)
     log.info("Workers:          %d", max_workers)
-    log.info("Tavily keys:      %d", len(keys))
+    log.info("Exa keys:         %d", len(keys))
     log.info("Key limit:        %d searches/key", KEY_LIMIT)
     log.info("Already written:  %d", len(done_hashes))
     log.info("Total rows:       %d", total_rows)
@@ -412,7 +400,7 @@ def process(
         return
 
     if remaining_capacity == 0:
-        log.warning("No remaining Tavily quota. Add more keys or reset quota, then rerun.")
+        log.warning("No remaining Exa quota. Add more keys or reset quota, then rerun.")
         return
 
     if remaining_rows > remaining_capacity:
@@ -436,7 +424,7 @@ def process(
         pbar = tqdm(
             fin,
             total=total_rows,
-            desc="Tavily",
+            desc="Exa",
             unit="row",
             dynamic_ncols=True,
             bar_format=(
@@ -514,7 +502,7 @@ def process(
     log.info("  remaining quota=%d", allocator.remaining_usable_capacity())
     if exhausted:
         log.warning(
-            "Stopped because all currently usable Tavily keys are exhausted or have "
+            "Stopped because all currently usable Exa keys are exhausted or have "
             "hit the configured per-key cap."
         )
     log.info("=" * 60)
@@ -522,7 +510,7 @@ def process(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Augment KaLM JSONL with Tavily web search results."
+        description="Augment KaLM JSONL with Exa web search results."
     )
     parser.add_argument(
         "--read_path",
@@ -546,7 +534,7 @@ def main() -> None:
         "--max_workers",
         type=int,
         default=16,
-        help="Max parallel Tavily requests per batch (default: 16).",
+        help="Max parallel Exa requests per batch (default: 16).",
     )
     parser.add_argument(
         "--env_file",

@@ -29,16 +29,16 @@ from shared.env import DEFAULT_PROJECT_ENV_FILE, load_optional_dotenv
 log = logging.getLogger("annotate_relevance")
 
 DEFAULT_INPUT_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/step6_kalm_web-search_query_document_pairs_no_medical.jsonl"
+    "/mnt/g/PrismRerankerV1Data/data_extend2/step6_expanded2_web-search_query_document_pairs.jsonl"
 )
 DEFAULT_SAVE_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/step7_kalm_web-search_query_document_pairs_annotated.jsonl"
+    "/mnt/g/PrismRerankerV1Data/data_extend2/step7_expanded2_web-search_query_document_pairs_annotated.jsonl"
 )
 TEMPLATE_PATH = (
     Path(__file__).resolve().parents[1] / "shared" / "templates" / "relevance_judge.j2"
 )
 
-MAX_RETRIES = 1
+MAX_RETRIES = 2
 
 
 def _setup_logging(verbose: bool = False) -> None:
