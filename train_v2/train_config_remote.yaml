@@ -1,6 +1,6 @@
 model:
-  path: "/mnt/data/public_models/Qwen3-Reranker-0.6B"
-  max_seq_length: 6144
+  path: "/mnt/data/public_models/Qwen3-0.6B"
+  max_seq_length: 8192
   dtype: "bfloat16"  # bfloat16 | float16 | float32 | null
   load_in_4bit: false
   attn_implementation: "flash_attention_2"  # null 时走 transformers 默认实现
@@ -22,16 +22,16 @@ lora:
   use_rslora: false
 
 data:
-  sft_data_file: "/mnt/data/PrismRerankerV1Data/step10_sft_data.jsonl"
-  # point_wise_data_file: "/mnt/g/PrismRerankerV1Data/step10_point_wise_data.jsonl"
+  sft_data_file: "/mnt/data/PrismRerankerV1Data/final_sft.jsonl"
+  # point_wise_data_file: "/mnt/g/PrismRerankerV1Data/final_point_wise.jsonl"
   point_wise_data_file: null
-  sft_ratio: 0.7  # 30% 的训练步数是sft
+  sft_ratio: 0.7  # 百分之sft_ratio 的训练步数是sft
   train_samples: null  # null 表示全量，设为整数则取前 N 条
   num_workers: 2
   pin_memory: true
 
 training:
-  num_epochs: 3
+  num_epochs: 2
   learning_rate: 1.0e-5
   weight_decay: 0.01
   warmup_steps: 200
@@ -45,8 +45,8 @@ loss:
   gamma_sft: 1.0    # SFT cross-entropy loss 权重
 
 output:
-  dir: "/mnt/data/train_output/sft_test_v1"
-  run_name: "sft_test_v1"
+  dir: "/mnt/data/train_output/sft_llm_v1"
+  run_name: "sft_llm_v1"
   save_interval_samples: 1000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:

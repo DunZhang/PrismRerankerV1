@@ -1,7 +1,55 @@
-import json
+# Requires transformers>=4.51.0
+import torch
+from transformers import AutoModel, AutoTokenizer, AutoModelForCausalLM
 
-with open("G:/PrismRerankerV1Data/step5_KaLM__all_retrieval_voyage-rerank2_voyage-rerank2.5_web-search-processed_keywords.jsonl","r",encoding="utf8") as fr:
-    for line in fr:
-        item = json.loads(line)
-        if "keywords" in item:
-            print(item["keywords"])
+
+def format_instruction(instruction, query, doc):
+    if instruction is None:
+        instruction = 'Given a web search query, retrieve relevant passages that answer the query'
+    output = "<Instruct>: {instruction}\n<Query>: {query}\n<Document>: {doc}".format(instruction=instruction,
+                                                                                     query=query, doc=doc)
+    return output
+
+
+def process_inputs(pairs):
+    inputs = tokenizer(
+        pairs, padding=False, truncation='longest_first',
+        return_attention_mask=False, max_length=max_length - len(prefix_tokens) - len(suffix_tokens)
+    )
+    for i, ele in enumerate(inputs['input_ids']):
+        inputs['input_ids'][i] = prefix_tokens + ele + suffix_tokens
+    inputs = tokenizer.pad(inputs, padding=True, return_tensors="pt", max_length=max_length)
+    print(tokenizer.decode(inputs['input_ids'][0]))
+    return inputs
+
+
+
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Reranker-0.6B", padding_side='left')
+
+# We recommend enabling flash_attention_2 for better acceleration and memory saving.
+# model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-Reranker-4B", torch_dtype=torch.float16, attn_implementation="flash_attention_2").cuda().eval()
+
+token_false_id = tokenizer.convert_tokens_to_ids("no")
+token_true_id = tokenizer.convert_tokens_to_ids("yes")
+max_length = 8192
+
+prefix = "<|im_start|>system\nJudge whether the Document meets the requirements based on the Query and the Instruct provided. Note that the answer can only be \"yes\" or \"no\".<|im_end|>\n<|im_start|>user\n"
+suffix = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+prefix_tokens = tokenizer.encode(prefix, add_special_tokens=False)
+suffix_tokens = tokenizer.encode(suffix, add_special_tokens=False)
+
+task = 'Given a web search query, retrieve relevant passages that answer the query'
+
+queries = ["What is the capital of China?",
+           "Explain gravity",
+           ]
+
+documents = [
+    "The capital of China is Beijing.",
+    "Gravity is a force that attracts two bodies towards each other. It gives weight to physical objects and is responsible for the movement of planets around the sun.",
+]
+
+pairs = [format_instruction(task, query, doc) for query, doc in zip(queries, documents)]
+
+# Tokenize the input texts
+inputs = process_inputs(pairs)

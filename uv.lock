@@ -1516,20 +1516,6 @@ wheels = [
 ]
 
 [[package]]
-name = "llama-cpp-python"
-version = "0.3.16"
-source = { registry = "https://abetlen.github.io/llama-cpp-python/whl/cu124" }
-dependencies = [
-    { name = "diskcache" },
-    { name = "jinja2" },
-    { name = "numpy" },
-    { name = "typing-extensions" },
-]
-wheels = [
-    { url = "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.16-cu124/llama_cpp_python-0.3.16-cp312-cp312-linux_x86_64.whl" },
-]
-
-[[package]]
 name = "llguidance"
 version = "0.7.30"
 source = { registry = "https://pypi.org/simple" }
@@ -2601,7 +2587,6 @@ dependencies = [
     { name = "langdetect" },
     { name = "lingua-language-detector" },
     { name = "litellm" },
-    { name = "llama-cpp-python" },
     { name = "openai" },
     { name = "openpyxl" },
     { name = "peft" },
@@ -2642,7 +2627,6 @@ requires-dist = [
     { name = "langdetect", specifier = ">=1.0.9" },
     { name = "lingua-language-detector", specifier = ">=2.2.0" },
     { name = "litellm", specifier = ">=1.82.6" },
-    { name = "llama-cpp-python", specifier = ">=0.3.16", index = "https://abetlen.github.io/llama-cpp-python/whl/cu124" },
     { name = "openai", specifier = ">=2.24.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "peft", specifier = ">=0.18.1" },
@@ -3984,11 +3968,11 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 wheels = [
-    { url = "https://download.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp312-cp312-linux_x86_64.whl", hash = "sha256:a393b506844035c0dac2f30ea8478c343b8e95a429f06f3b3cadfc7f53adb597" },
-    { url = "https://download.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp312-cp312-win_amd64.whl", hash = "sha256:3313061c1fec4c7310cf47944e84513dcd27b6173b72a349bb7ca68d0ee6e9c0" },
-    { url = "https://download.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp313-cp313-linux_x86_64.whl", hash = "sha256:0f3bc53c988ce9568cd876a2a5316761e84a8704135ec8068f5f81b4417979cb" },
-    { url = "https://download.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp313-cp313-win_amd64.whl", hash = "sha256:519330eef09534acad8110b6f423d2fe58c1d8e9ada999ed077a637a0021f908" },
-    { url = "https://download.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp313-cp313t-linux_x86_64.whl", hash = "sha256:35cba404c0d742406cdcba1609085874bc60facdfbc50e910c47a92405fef44c" },
+    { url = "https://download-r2.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp312-cp312-linux_x86_64.whl", hash = "sha256:a393b506844035c0dac2f30ea8478c343b8e95a429f06f3b3cadfc7f53adb597" },
+    { url = "https://download-r2.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp312-cp312-win_amd64.whl", hash = "sha256:3313061c1fec4c7310cf47944e84513dcd27b6173b72a349bb7ca68d0ee6e9c0" },
+    { url = "https://download-r2.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp313-cp313-linux_x86_64.whl", hash = "sha256:0f3bc53c988ce9568cd876a2a5316761e84a8704135ec8068f5f81b4417979cb" },
+    { url = "https://download-r2.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp313-cp313-win_amd64.whl", hash = "sha256:519330eef09534acad8110b6f423d2fe58c1d8e9ada999ed077a637a0021f908" },
+    { url = "https://download-r2.pytorch.org/whl/cu124/torch-2.6.0%2Bcu124-cp313-cp313t-linux_x86_64.whl", hash = "sha256:35cba404c0d742406cdcba1609085874bc60facdfbc50e910c47a92405fef44c" },
 ]
 
 [[package]]

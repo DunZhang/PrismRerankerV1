@@ -16,7 +16,6 @@ dependencies = [
     "tqdm>=4.67.3",
     "python-dotenv>=1.2.1",
     "huggingface-hub>=0.30.0,<1.0",
-    "llama-cpp-python>=0.3.16",
     "flash-attn",
     "vllm>=0.8.5.post1",
     "wandb>=0.25.0",
@@ -44,16 +43,10 @@ name = "pytorch-cu124"
 url = "https://download.pytorch.org/whl/cu124"
 explicit = true
 
-[[tool.uv.index]]
-name = "llama-cpp-python-cu124"
-url = "https://abetlen.github.io/llama-cpp-python/whl/cu124"
-explicit = true
-
 [tool.uv.sources]
 torch = { index = "pytorch-cu124" }
 torchvision = { index = "pytorch-cu124" }
 torchaudio = { index = "pytorch-cu124" }
-llama-cpp-python = { index = "llama-cpp-python-cu124" }
 flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.7.4+cu124torch2.6-cp312-cp312-linux_x86_64.whl" }
 
 [build-system]

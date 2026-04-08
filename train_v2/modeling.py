@@ -86,6 +86,19 @@ def load_model_and_tokenizer(cfg: TrainConfig) -> tuple[Any, Any]:
     return model, tokenizer
 
 
+def get_model_internals(
+    model: Any,
+    accelerator: Any,
+) -> tuple[Any, torch.nn.Module]:
+    """返回 (transformer_body, lm_head)，兼容 PEFT + Accelerate 包装。"""
+    unwrapped = accelerator.unwrap_model(model)
+    if hasattr(unwrapped, "base_model"):  # PEFT wrapped
+        causal_lm = unwrapped.base_model.model
+    else:
+        causal_lm = unwrapped
+    return causal_lm.model, causal_lm.lm_head
+
+
 def extract_yes_no_logits(
     model: Any,
     input_ids: torch.Tensor,

@@ -6,7 +6,7 @@
 
 - 统一评测入口：`uv run python -m rank_evaluate ...`
 - 支持断点续跑：按 query 粒度缓存
-- 支持多后端模型：Voyage API、HF、vLLM、GGUF、Prism 微调模型
+- 支持多后端模型：Voyage API、HF、vLLM、Prism 微调模型
 - 让开发者能快速扩展：模型注册、数据加载、评测主循环、报表写入都拆成了独立模块
 
 ## 1. 快速开始
@@ -24,10 +24,7 @@ uv sync
 ```bash
 python -m rank_evaluate.report_from_cache --run_tag neg30_seed42
 
-python -m rank_evaluate   --model zerank-2  --model_path /mnt/data/public_models/zerank-2 --num_neg 30 --data_dir /mnt/data/PrismRerankerV1Data/dev  --max_queries 100
-
-
-python -m rank_evaluate   --model prism-reranker-0.6b-vllm   --model_path /root/samples-12800_megred_lora   --num_neg 30 --data_dir /mnt/data/PrismRerankerV1Data/dev  --max_queries 100
+python -m rank_evaluate   --model prism-reranker-0.6b-vllm   --model_path /root/samples-12000-merged   --num_neg 30 --data_dir /mnt/data/PrismRerankerV1Data/dev  --max_queries 100
 
 
 python -m rank_evaluate   --model qwen3-reranker-0.6b-vllm  --model_path /mnt/data/public_models/Qwen3-Reranker-0.6B   --num_neg 30 --data_dir /mnt/data/PrismRerankerV1Data/dev  --max_queries 100
@@ -163,7 +160,7 @@ rm -rf rank_evaluate/cache/*/neg10_seed42
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
 | `--model` | 必填 | 模型名称 |
-| `--model_path` | `None` | 本地模型目录或文件路径；GGUF 和 Prism 必填 |
+| `--model_path` | `None` | 本地模型目录或文件路径；Prism 必填 |
 | `--data_dir` | `POSIR_DATA_DIR` | JSONL 数据目录 |
 | `--num_neg` | `10` | 每条 query 采样的负例数 |
 | `--output` | `rank_evaluate/evaluation_results.xlsx` | 输出报表路径 |
@@ -180,18 +177,10 @@ rm -rf rank_evaluate/cache/*/neg10_seed42
 | `voyage-rerank-2` | Voyage API | 否 | Voyage 官方 rerank API |
 | `voyage-rerank-2.5` | Voyage API | 否 | Voyage 官方 rerank API |
 | `voyage-rerank-2.5-lite` | Voyage API | 否 | Voyage 官方 rerank API |
-| `qwen3-reranker-0.6b` | HuggingFace Transformers | 否，可选本地路径 | 单机 CUDA 推理 |
-| `qwen3-reranker-0.6b-vllm` | vLLM | 否，可选本地路径 | 推荐，支持 prefix caching |
-| `qwen3-reranker-4b-vllm` | vLLM | 否，可选本地路径 | 更大模型 |
-| `qwen3-reranker-8b-vllm` | vLLM | 否，可选本地路径 | 更大模型 |
-| `qwen3-reranker-0.6b-gguf` | llama-cpp-python | 是 | GGUF 量化模型 |
-| `qwen3-reranker-4b-gguf` | llama-cpp-python | 是 | GGUF 量化模型 |
+| `qwen3-reranker-0.6b-vllm` | vLLM | 是 | 推荐，支持 prefix caching |
+| `qwen3-reranker-4b-vllm` | vLLM | 是 | 更大模型 |
+| `qwen3-reranker-8b-vllm` | vLLM | 是 | 更大模型 |
 | `prism-reranker-0.6b-vllm` | vLLM | 是 | 使用训练时 prompt 模板的微调模型 |
-
-兼容别名：
-
-- `qwen3-reranker-hf` -> `qwen3-reranker-0.6b`
-- `qwen3-reranker-gguf` -> `qwen3-reranker-0.6b-gguf`
 
 ## 7. 环境准备
 
@@ -211,7 +200,7 @@ VOYAGE_API_KEY_2=key_b
 VOYAGE_API_KEY_3=key_c
 ```
 
-### 7.2 vLLM / Transformers / GGUF
+### 7.2 vLLM
 
 这些后端都默认按 GPU 推理设计，建议：
 
@@ -238,13 +227,10 @@ rank_evaluate/
 ├── checkpoint.py
 ├── report.py
 ├── report_from_cache.py
-├── cuda_libs.py
 └── models/
     ├── base.py
     ├── voyage.py
-    ├── qwen_hf.py
-    ├── qwen_vllm.py
-    └── qwen_gguf.py
+    └── qwen_vllm.py
 ```
 
 各文件职责：
@@ -335,8 +321,6 @@ uv run python -m unittest discover -s tests
 
 你选择的是本地模型型后端，例如：
 
-- `qwen3-reranker-0.6b-gguf`
-- `qwen3-reranker-4b-gguf`
 - `prism-reranker-0.6b-vllm`
 
 这些模型不会自动推断路径，必须显式传。

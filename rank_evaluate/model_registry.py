@@ -43,49 +43,28 @@ def list_supported_models(backend: str | None = None) -> list[ModelDefinition]:
             backend="voyage-api",
         ),
         ModelDefinition(
-            name="qwen3-reranker-0.6b-gguf",
-            description="Qwen3-Reranker-0.6B GGUF via llama-cpp-python",
-            backend="llama-cpp",
-            requires_model_path=True,
-            aliases=("qwen3-reranker-gguf",),
-        ),
-        ModelDefinition(
-            name="qwen3-reranker-4b-gguf",
-            description="Qwen3-Reranker-4B GGUF via llama-cpp-python",
-            backend="llama-cpp",
-            requires_model_path=True,
-        ),
-        ModelDefinition(
-            name="qwen3-reranker-0.6b",
-            description="Qwen3-Reranker-0.6B via HuggingFace transformers",
-            backend="transformers",
-            aliases=("qwen3-reranker-hf",),
-        ),
-        ModelDefinition(
             name="qwen3-reranker-0.6b-vllm",
             description="Qwen3-Reranker-0.6B via vLLM",
             backend="vllm",
+            requires_model_path=True,
         ),
         ModelDefinition(
             name="qwen3-reranker-4b-vllm",
             description="Qwen3-Reranker-4B via vLLM",
             backend="vllm",
+            requires_model_path=True,
         ),
         ModelDefinition(
             name="qwen3-reranker-8b-vllm",
             description="Qwen3-Reranker-8B via vLLM",
             backend="vllm",
+            requires_model_path=True,
         ),
         ModelDefinition(
             name="prism-reranker-0.6b-vllm",
             description="Fine-tuned Prism Reranker via vLLM",
             backend="vllm",
             requires_model_path=True,
-        ),
-        ModelDefinition(
-            name="zerank-2",
-            description="ZeRank-2 CrossEncoder via sentence-transformers (BF16)",
-            backend="sentence-transformers",
         ),
     ]
     if backend is None:
@@ -141,20 +120,6 @@ def build_model(model_name: str, model_path: Path | None = None) -> BaseReranker
         voyage_model = definition.name.removeprefix("voyage-")
         return VoyageReranker(model=voyage_model)
 
-    if definition.name.endswith("-gguf"):
-        from .models.qwen_gguf import QwenGGUFReranker
-
-        if model_path is None:
-            raise ValueError(f"{definition.name} requires --model_path.")
-        return QwenGGUFReranker(model_path=str(model_path))
-
-    if definition.name == "qwen3-reranker-0.6b":
-        from .models.qwen_hf import QwenHFReranker
-
-        if model_path is None:
-            return QwenHFReranker()
-        return QwenHFReranker(model_id=str(model_path))
-
     if definition.name in {
         "qwen3-reranker-0.6b-vllm",
         "qwen3-reranker-4b-vllm",
@@ -162,13 +127,9 @@ def build_model(model_name: str, model_path: Path | None = None) -> BaseReranker
     }:
         from .models.qwen_vllm import QwenVLLMReranker
 
-        default_model_ids = {
-            "qwen3-reranker-0.6b-vllm": "Qwen/Qwen3-Reranker-0.6B",
-            "qwen3-reranker-4b-vllm": "Qwen/Qwen3-Reranker-4B",
-            "qwen3-reranker-8b-vllm": "Qwen/Qwen3-Reranker-8B",
-        }
-        model_id = str(model_path) if model_path else default_model_ids[definition.name]
-        return QwenVLLMReranker(model_id=model_id)
+        if model_path is None:
+            raise ValueError(f"{definition.name} requires --model_path.")
+        return QwenVLLMReranker(model_id=str(model_path))
 
     if definition.name == "prism-reranker-0.6b-vllm":
         from shared.prompts import TRAINING_INSTRUCTION
@@ -180,13 +141,7 @@ def build_model(model_name: str, model_path: Path | None = None) -> BaseReranker
         return QwenVLLMReranker(
             model_id=str(model_path),
             instruction=TRAINING_INSTRUCTION,
+            use_chat_template=False,
         )
-
-    if definition.name == "zerank-2":
-        from .models.zerank import ZeRankReranker
-
-        if model_path is not None:
-            return ZeRankReranker(model_id=str(model_path))
-        return ZeRankReranker()
 
     raise ValueError(f"Unsupported model configuration for {definition.name!r}.")

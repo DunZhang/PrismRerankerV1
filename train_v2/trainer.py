@@ -26,7 +26,7 @@ from train_v2.data import (
     InterleavedDataset,
     make_train_collate_fn,
 )
-from train_v2.modeling import load_model_and_tokenizer
+from train_v2.modeling import get_model_internals, load_model_and_tokenizer
 
 BEIJING_TZ = ZoneInfo("Asia/Shanghai")
 
@@ -195,6 +195,47 @@ def compute_sft_loss(
     )
 
 
+def compute_chunked_sft_loss(
+    hidden_states: torch.Tensor,
+    labels: torch.Tensor,
+    lm_head: torch.nn.Module,
+    chunk_size: int = 1024,
+) -> torch.Tensor:
+    """先过滤有效 token 再分块投影，避免 materialize 完整 logits。
+
+    Args:
+        hidden_states: (1, seq_len, hidden_dim)
+        labels: (1, seq_len) with -100 for masked (prompt) positions
+        lm_head: 模型的 lm_head 线性层
+        chunk_size: 每次投影的 token 数
+    """
+    shift_hidden = hidden_states[:, :-1, :]
+    shift_labels = labels[:, 1:].contiguous()
+
+    mask = shift_labels.view(-1) != -100
+    if mask.sum() == 0:
+        return torch.tensor(
+            0.0, device=hidden_states.device, dtype=hidden_states.dtype
+        )
+
+    valid_hidden = shift_hidden.reshape(-1, shift_hidden.size(-1))[mask]
+    valid_labels = shift_labels.view(-1)[mask]
+
+    n_valid = valid_hidden.size(0)
+    total_loss = torch.zeros(1, device=hidden_states.device, dtype=hidden_states.dtype)
+
+    for start in range(0, n_valid, chunk_size):
+        end = min(start + chunk_size, n_valid)
+        chunk_logits = lm_head(valid_hidden[start:end])
+        total_loss = total_loss + F.cross_entropy(
+            chunk_logits,
+            valid_labels[start:end],
+            reduction="sum",
+        )
+
+    return total_loss / n_valid
+
+
 # ---------------------------------------------------------------------------
 # Checkpoint saving
 # ---------------------------------------------------------------------------
@@ -332,6 +373,10 @@ class RerankerTrainer:
             self.scheduler,
         )
 
+        self.transformer, self.lm_head = get_model_internals(
+            self.model, self.accelerator
+        )
+
         self.model.train()
         self.metrics = MetricTracker()
         self.state = TrainingState(
@@ -377,31 +422,42 @@ class RerankerTrainer:
             attention_mask = batch["attention_mask"]
             loss_type: str = batch["loss_type"]
 
-            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-            logits = outputs.logits  # (1, seq_len, vocab_size)
+            with self.accelerator.autocast():
+                # 只走 transformer body，跳过 lm_head，避免 materialize 完整 logits
+                outputs = self.transformer(
+                    input_ids=input_ids, attention_mask=attention_mask
+                )
+                hidden_states = outputs[0]  # (1, seq_len, hidden_dim)
 
-            zero = torch.tensor(0.0, device=logits.device, dtype=logits.dtype)
-            loss_point = zero
-            loss_sft = zero
+                # 保持在计算图中，避免全 mask 时 total 丢失 grad_fn
+                zero = (hidden_states * 0.0).sum()
+                loss_point = zero
+                loss_sft = zero
 
-            if "point-wise" in loss_type:
+                if "point-wise" in loss_type:
+                    if "sft" in loss_type:
+                        pos = batch["prompt_length"] - 1
+                    else:
+                        pos = -1
+                    pos_logits = self.lm_head(
+                        hidden_states[:, pos : pos + 1, :]
+                    ).squeeze(1)
+                    student_z = (
+                        pos_logits[:, YES_TOKEN_ID] - pos_logits[:, NO_TOKEN_ID]
+                    )
+                    teacher_score = batch["teacher_score"].to(student_z.device)
+                    loss_point = compute_point_loss(student_z, teacher_score)
+
                 if "sft" in loss_type:
-                    pos = batch["prompt_length"] - 1
-                else:
-                    pos = -1
-                last_logits = logits[:, pos, :]
-                student_z = last_logits[:, YES_TOKEN_ID] - last_logits[:, NO_TOKEN_ID]
-                teacher_score = batch["teacher_score"].to(student_z.device)
-                loss_point = compute_point_loss(student_z, teacher_score)
+                    labels = batch["labels"].to(hidden_states.device)
+                    loss_sft = compute_chunked_sft_loss(
+                        hidden_states, labels, self.lm_head
+                    )
 
-            if "sft" in loss_type:
-                labels = batch["labels"].to(logits.device)
-                loss_sft = compute_sft_loss(logits, labels)
-
-            total = (
-                self.cfg.loss.gamma_point * loss_point
-                + self.cfg.loss.gamma_sft * loss_sft
-            )
+                total = (
+                    self.cfg.loss.gamma_point * loss_point
+                    + self.cfg.loss.gamma_sft * loss_sft
+                )
 
             self.accelerator.backward(total)
 
