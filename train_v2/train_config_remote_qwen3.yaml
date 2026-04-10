@@ -1,0 +1,55 @@
+model:
+  path: "/mnt/data/public_models/Qwen3-1.7B"
+  max_seq_length: 8192
+  dtype: "bfloat16"  # bfloat16 | float16 | float32 | null
+  load_in_4bit: false
+  attn_implementation: "sdpa"  # null 时走 transformers 默认实现
+  gradient_checkpointing: true
+
+lora:
+  enabled: true  # false 时走全参微调
+  r: 48
+  alpha: 96
+  dropout: 0.0
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  use_rslora: false
+
+data:
+  sft_data_file: "/mnt/data/PrismRerankerV1Data/final_sft.jsonl"
+  # point_wise_data_file: "/mnt/g/PrismRerankerV1Data/final_point_wise.jsonl"
+  point_wise_data_file: null
+  sft_ratio: 0.7  # 百分之sft_ratio 的训练步数是sft
+  train_samples: null  # null 表示全量，设为整数则取前 N 条
+  num_workers: 2
+  pin_memory: true
+
+training:
+  num_epochs: 2
+  learning_rate: 1.0e-5
+  weight_decay: 0.01
+  warmup_steps: 1000
+  lr_scheduler: "cosine"  # cosine | linear
+  grad_accum_steps: 16
+  max_grad_norm: 1.0  # 0 表示不做梯度裁剪
+  seed: 42
+
+loss:
+  gamma_point: 10.0  # point-wise MSE loss 权重
+  gamma_sft: 1.0    # SFT cross-entropy loss 权重
+
+output:
+  dir: "/mnt/data/train_output/qwen3_1_7_B_v1"
+  run_name: "qwen3_1_7_B_v1"
+  save_interval_samples: 1000  # 按全局 seen samples 定期保存 checkpoint
+
+logging:
+  wandb_project: "prism-reranker-v1"
+  wandb_mode: "offline"  # offline | online | disabled
+  log_interval_steps: 1

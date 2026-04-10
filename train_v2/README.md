@@ -453,3 +453,16 @@ output_dir/
 ## 一句话总结
 
 `train_v2` 的本质是：把 reranker 训练改成了**单条 query-document pair 的混合监督训练**，其中 `revised_score` 负责 point-wise 蒸馏，`annotated_label + contribution_evidence` 负责 SFT，而 `loss_type` 决定一条样本到底参与哪几项 loss。
+
+
+
+# 训练命令
+
+```
+# 推荐：accelerate（会自动按 --num_processes 配 DDP）
+accelerate launch --num_processes 4 train_v2.py --config train_config_remote_qwen3.5.yaml
+
+# 或者 torchrun 也行
+uv run torchrun --nproc_per_node 4 train_v2/train_v2.py --config ...
+首次用 accelerate 前建议跑一次 uv run accelerate config，把 DDP / mixed precision / num_processes 配好（或直接走命令行参数覆盖）。
+```

@@ -1,0 +1,117 @@
+你是搜索相关性标注任务的质检员。你的任务是：给定一条 query、一篇原始 document，以及某个模型从该 document 中抽取的 contribution 和 evidence，按严格的标准对这份抽取结果打分。
+
+---
+
+## 背景：生成者当时被要求遵循的规则
+
+下面这两段规则原封不动来自生成 contribution 和 evidence 时使用的 prompt，是生成者当时收到的指令。你的任务不是重新生成，而是**判断生成者有没有遵守这些规则**。
+
+<contribution_guide>
+contribution 是指该文档具体解决了 query 的什么问题。不同文档对同一 query 的贡献往往不同，这里只举几个例子：
+- 解释了某个概念的原理或机制
+- 提供了实验数据或统计结论作为依据
+- 给出了可操作的方法、步骤或方案
+- 用案例或实际经验佐证了某个观点
+- 对比了多种选项的优缺点，辅助决策
+- 补充了注意事项、风险或边界条件
+
+要求用一句话概括该文档帮 query 解决了什么，涵盖所有核心贡献点，但每个点只需点到即可，不要展开。
+</contribution_guide>
+
+<evidence_guide>
+evidence 将完全替代原文，下游模型只能看到 evidence、永远无法访问原文。因此：
+
+1. **忠实是最高原则**：生成者只是原文的搬运工，只能换一种表达方式，绝不添加原文中没有的信息。
+   - 数字、术语、专有名词、动名词等必须原样保留，不得改写或近似替换。
+   - 禁止任何推测和推断，即使看起来"合理"也不行。原文没说的，就不写。
+   - 禁止补充原文未提及的因果关系、结论或解释。
+   - 允许的改写仅限于：消解指代、合并重复表述、调整句序以提高可读性。
+2. **自包含**：文档中所有对回答 query 有用的信息必须保留在 evidence 中，不可遗漏。消解指代、补全省略、保留关键数据和限定条件，确保仅凭 evidence 就能完整回答 query。
+3. **精简**：去除与 query 无直接关联的背景铺垫和冗余内容，只保留对回答 query 有实际贡献的信息。
+</evidence_guide>
+
+---
+
+## 评分维度（每一项都必须给分，整数 1–5）
+
+1. **contribution_accuracy（贡献准确性）**：contribution 是否**真实反映**文档对 query 的实际贡献？有没有瞎编、偏题、或者说了文档根本没做的事？
+2. **contribution_coverage（贡献概括性）**：是否做到"一句话涵盖核心贡献点"？有没有遗漏重要贡献，或者反过来啰嗦冗长、把不是贡献的细节也塞进去？
+3. **evidence_faithfulness（证据忠实度）**：⭐ 这是**最严重**的维度。evidence 里有没有**原文里没有的信息**？数字、专名、术语有没有被改动或近似替换？有没有凭空加上的因果、结论、语气？
+   - 出现任何**明显**幻觉（数字改动、凭空论点、虚构因果） → 最多给 **2**。
+   - 把原文的"可能/据说/有人认为"改成"一定/证明/事实是" → 最多给 **2**（语气幻觉）。
+4. **evidence_self_contained（证据自包含性）**：假装看不到 document，仅凭 evidence 能不能完整回答 query？关键限定条件（样本量、时间、前提、范围）有没有保留？指代有没有消解？
+5. **evidence_concision（证据精简度）**：有没有保留与 query 无关的背景铺垫、广告、导航文字、重复段落？是只做了"复制粘贴"还是真的做了提炼？
+   - 如果 evidence 几乎是原文一字不差的照抄，没有任何精简和消解 → 最多给 **3**。
+6. **overall（总评）**：**不是机械平均**，而是综合判断："这一条 evidence 作为下游模型唯一看得到的输入，够不够用、会不会误导？"
+   - 任何一维出现严重幻觉（faithfulness ≤ 2），overall 不得高于 **2**。
+   - 任何一维是 1，overall 不得高于 **2**。
+
+## 5 分制标尺
+
+- **5 · 非常好**：完全达标，可以作为高质量训练正例。
+- **4 · 良好**：基本达标，瑕疵轻微，不影响下游使用。
+- **3 · 一般符合**：达到底线，但有明显改进空间（例如评论有一点冗余、概括略宽）。
+- **2 · 较差**：存在实质缺陷（轻度幻觉、关键信息丢失、明显啰嗦），不适合直接用。
+- **1 · 非常差**：严重问题（幻觉、跑题、主要信息丢失、空洞套话、复述 query）。
+
+## 一些 hard rule（满足即触发）
+
+- contribution 或 evidence 为空、只是复述 query、和 document 明显不符 → 该维度直接给 **1**。
+- contribution 用"本文介绍了 xxx / 这篇文章讨论了 xxx"这种空洞套话而没有具体贡献点 → contribution_accuracy 最多 **2**。
+- evidence 里存在 document 中完全查不到的数字或专名 → evidence_faithfulness 直接 **1**。
+- evidence 和 query 完全无关 → 各维度全部 **1**。
+
+---
+
+## 打分前的强制检查清单
+
+在你思考（reasoning）过程中，请**显式**逐条检查：
+
+1. contribution 说的事情，是否都能在 document 里找到对应内容？
+2. evidence 里每一个数字、每一个专名/术语，是否都能在 document 里原样找到？
+3. evidence 里有没有 document 中**没有**的因果词、结论词、推断？
+4. 不看 document，只看 evidence，能否完整、准确地回答 query？
+5. evidence 里有没有跟 query 无关的段落、广告、导航菜单、作者介绍？
+6. evidence 是真的做了提炼改写，还是大段复制 document？
+
+---
+
+## 输出格式（严格遵守，便于解析）
+
+先用自然语言简要说明你对每个维度的判断（放在 reason 里），然后给出 XML 格式的分数和理由。**不要输出任何 XML 之外的额外内容**。
+
+```
+<scores>
+  <contribution_accuracy>{整数1-5}</contribution_accuracy>
+  <contribution_coverage>{整数1-5}</contribution_coverage>
+  <evidence_faithfulness>{整数1-5}</evidence_faithfulness>
+  <evidence_self_contained>{整数1-5}</evidence_self_contained>
+  <evidence_concision>{整数1-5}</evidence_concision>
+  <overall>{整数1-5}</overall>
+</scores>
+<reason>
+按 contribution_accuracy / contribution_coverage / evidence_faithfulness / evidence_self_contained / evidence_concision / overall 的顺序，每一维度一两句，指出具体扣分点或给满分的原因。必须引用 document 或 evidence 中的具体片段来支撑你的判断，不要只说"大致准确"这种空话。
+</reason>
+```
+
+---
+
+## 待评估的样本
+
+<query>
+{{ query }}
+</query>
+
+<document>
+{{ document }}
+</document>
+
+<model_contribution>
+{{ contribution }}
+</model_contribution>
+
+<model_evidence>
+{{ evidence }}
+</model_evidence>
+
+现在请按上面的规则给分。

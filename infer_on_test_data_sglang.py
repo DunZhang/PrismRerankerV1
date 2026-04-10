@@ -1,11 +1,11 @@
 """Batch inference script for Qwen3 / Qwen3.5 Reranker on JSONL test data.
 
-Uses vLLM for fast batched inference. For each (query, document) pair:
+Uses SGLang offline engine for fast batched inference. For each (query, document) pair:
 - Score = softmax(yes_logit, no_logit)[yes] at the first generated token
 - Generated text = greedy decoded reasoning output
 
 Usage:
-    uv run python infer_on_test_data.py
+    uv run python infer_on_test_data_sglang.py
 """
 
 from __future__ import annotations
@@ -14,8 +14,7 @@ import json
 import math
 from typing import Any
 
-import torch
-from vllm import LLM, SamplingParams, TokensPrompt
+import sglang as sgl
 
 from shared.prompts import (
     TRAINING_INSTRUCTION,
@@ -26,25 +25,21 @@ from shared.prompts import (
 # ---------------------------------------------------------------------------
 # Global Config
 # ---------------------------------------------------------------------------
-MODEL_PATH: str = "/root/qwen3_1_7_B_v1-epoch-1"
+MODEL_PATH: str = "/root/Qwen3.5-2B-epoch-1"
 INPUT_PATH: str = "/mnt/data/PrismRerankerV1Data/final_dev_data.jsonl"
-OUTPUT_PATH: str = "/mnt/data/PrismRerankerV1Data/valid_3_pred_res.jsonl"
-
-# MODEL_PATH: str = "/root/Qwen3.5-2B-epoch-1"
-# INPUT_PATH: str = "/mnt/data/PrismRerankerV1Data/final_dev_data.jsonl"
-# OUTPUT_PATH: str = "/mnt/data/PrismRerankerV1Data/Qwen3.5-2B-epoch-1-result-rerun.jsonl"
+OUTPUT_PATH: str = "/mnt/data/PrismRerankerV1Data/valid_3_5_pred_res.jsonl"
 
 MAX_SAMPLES: int = 4000000
 MAX_MODEL_LEN: int = 10240
 MAX_NEW_TOKENS: int = 2048
-GPU_MEMORY_UTILIZATION: float = 0.8
+GPU_MEMORY_UTILIZATION: float = 0.6
 
 
 def build_prompts(
     rows: list[dict[str, Any]], tokenizer: Any
-) -> list[TokensPrompt]:
+) -> list[dict[str, list[int]]]:
     """Render and tokenize prompts for all rows."""
-    prompts: list[TokensPrompt] = []
+    prompts: list[dict[str, list[int]]] = []
     for row in rows:
         raw = render_raw_prompt(
             row["query"],
@@ -53,21 +48,23 @@ def build_prompts(
             system_prompt=TRAINING_SYSTEM_PROMPT,
         )
         ids = tokenizer.encode(raw, add_special_tokens=False)[:MAX_MODEL_LEN]
-        prompts.append(TokensPrompt(prompt_token_ids=ids))
+        prompts.append({"input_ids": ids})
     return prompts
 
 
 def main() -> None:
-    print(f"Loading vLLM model from {MODEL_PATH} ...")
+    import torch
+
     tp_size = max(1, torch.cuda.device_count())
-    model = LLM(
-        model=MODEL_PATH,
-        tensor_parallel_size=tp_size,
-        max_model_len=MAX_MODEL_LEN + MAX_NEW_TOKENS + 64,
-        enable_prefix_caching=True,
-        gpu_memory_utilization=GPU_MEMORY_UTILIZATION
+    print(f"Loading SGLang engine from {MODEL_PATH} (tp={tp_size}) ...")
+
+    llm = sgl.Engine(
+        model_path=MODEL_PATH,
+        tp_size=tp_size,
+        mem_fraction_static=GPU_MEMORY_UTILIZATION,
+        context_length=MAX_MODEL_LEN + MAX_NEW_TOKENS + 64,
     )
-    tokenizer = model.get_tokenizer()
+    tokenizer = llm.tokenizer_manager.tokenizer
 
     yes_ids = tokenizer.encode("yes", add_special_tokens=False)
     no_ids = tokenizer.encode("no", add_special_tokens=False)
@@ -77,39 +74,41 @@ def main() -> None:
         )
     yes_token_id, no_token_id = yes_ids[0], no_ids[0]
     print(f"yes_id={yes_token_id}, no_id={no_token_id}")
-    sampling_params = SamplingParams(
-        temperature=0,
-        max_tokens=MAX_NEW_TOKENS,
-        logprobs=20,
-    )
-    print(f"Model loaded. tp={tp_size}\n")
+
+    sampling_params: dict[str, Any] = {
+        "temperature": 0,
+        "max_new_tokens": MAX_NEW_TOKENS,
+    }
 
     with open(INPUT_PATH, encoding="utf-8") as f:
         rows = [json.loads(line) for line in f.readlines()[:MAX_SAMPLES]]
     print(f"Total samples: {len(rows)}")
 
     prompts = build_prompts(rows, tokenizer)
-    outputs = model.generate(prompts, sampling_params)
+    outputs = llm.generate(
+        input_ids=[p["input_ids"] for p in prompts],
+        sampling_params=sampling_params,
+        return_logprob=True,
+        top_logprobs_num=20,
+    )
 
     results: list[dict[str, Any]] = []
     for i, (row, output) in enumerate(zip(rows, outputs)):
-        first_logprobs = output.outputs[0].logprobs[0]
-        yes_lp = (
-            first_logprobs[yes_token_id].logprob
-            if yes_token_id in first_logprobs
-            else -10.0
-        )
-        no_lp = (
-            first_logprobs[no_token_id].logprob
-            if no_token_id in first_logprobs
-            else -10.0
-        )
+        meta = output["meta_info"]
+        first_top_logprobs = meta["output_top_logprobs"][0]
+
+        # SGLang format: list of (logprob, token_id, token_str) tuples
+        logprob_map: dict[int, float] = {
+            tok_id: lp for lp, tok_id, _ in first_top_logprobs
+        }
+        yes_lp = logprob_map.get(yes_token_id, -10.0)
+        no_lp = logprob_map.get(no_token_id, -10.0)
         yes_p = math.exp(yes_lp)
         no_p = math.exp(no_lp)
         score = yes_p / (yes_p + no_p)
 
         row["pred_score"] = score
-        row["pred_text"] = output.outputs[0].text
+        row["pred_text"] = output["text"]
         results.append(row)
 
         print(f"[{i + 1}/{len(rows)}] score={score:.6f} | {row['query'][:60]}")
@@ -118,6 +117,7 @@ def main() -> None:
         for row in results:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
+    llm.shutdown()
     print(f"\nDone. Results saved to {OUTPUT_PATH}")
 
 

@@ -1,55 +1,29 @@
-# Requires transformers>=4.51.0
-import torch
-from transformers import AutoModel, AutoTokenizer, AutoModelForCausalLM
+import asyncio
+from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions, AssistantMessage, ResultMessage, TextBlock
 
+# ====== 配置区 ======
+MODE = "new"  # "new" = 新建会话, "resume" = 恢复会话
+RESUME_SESSION_ID = "7870c941-62e8-434e-a9af-4d1f7acc149b"  # 恢复时填入之前打印的 session_id
+PROMPTS = ["介绍下爱因斯坦", "你简单说下他最最最重要的一个贡献吧，只说一个"]
+# PROMPTS = ["我一共问了哪几个问题"]
+# ====================
 
-def format_instruction(instruction, query, doc):
-    if instruction is None:
-        instruction = 'Given a web search query, retrieve relevant passages that answer the query'
-    output = "<Instruct>: {instruction}\n<Query>: {query}\n<Document>: {doc}".format(instruction=instruction,
-                                                                                     query=query, doc=doc)
-    return output
-
-
-def process_inputs(pairs):
-    inputs = tokenizer(
-        pairs, padding=False, truncation='longest_first',
-        return_attention_mask=False, max_length=max_length - len(prefix_tokens) - len(suffix_tokens)
+async def run():
+    opts = ClaudeAgentOptions(
+        permission_mode="bypassPermissions",
+        resume=RESUME_SESSION_ID if MODE == "resume" else None,
+        continue_conversation=MODE == "resume",
     )
-    for i, ele in enumerate(inputs['input_ids']):
-        inputs['input_ids'][i] = prefix_tokens + ele + suffix_tokens
-    inputs = tokenizer.pad(inputs, padding=True, return_tensors="pt", max_length=max_length)
-    print(tokenizer.decode(inputs['input_ids'][0]))
-    return inputs
+    async with ClaudeSDKClient(options=opts) as client:
+        for p in PROMPTS:
+            print(f"\n>>> {p}")
+            await client.query(p)
+            async for msg in client.receive_response():
+                if isinstance(msg, AssistantMessage):
+                    for b in msg.content:
+                        if isinstance(b, TextBlock):
+                            print(b.text)
+                if isinstance(msg, ResultMessage):
+                    print(f"\n[session_id: {msg.session_id}]")
 
-
-
-tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Reranker-0.6B", padding_side='left')
-
-# We recommend enabling flash_attention_2 for better acceleration and memory saving.
-# model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-Reranker-4B", torch_dtype=torch.float16, attn_implementation="flash_attention_2").cuda().eval()
-
-token_false_id = tokenizer.convert_tokens_to_ids("no")
-token_true_id = tokenizer.convert_tokens_to_ids("yes")
-max_length = 8192
-
-prefix = "<|im_start|>system\nJudge whether the Document meets the requirements based on the Query and the Instruct provided. Note that the answer can only be \"yes\" or \"no\".<|im_end|>\n<|im_start|>user\n"
-suffix = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
-prefix_tokens = tokenizer.encode(prefix, add_special_tokens=False)
-suffix_tokens = tokenizer.encode(suffix, add_special_tokens=False)
-
-task = 'Given a web search query, retrieve relevant passages that answer the query'
-
-queries = ["What is the capital of China?",
-           "Explain gravity",
-           ]
-
-documents = [
-    "The capital of China is Beijing.",
-    "Gravity is a force that attracts two bodies towards each other. It gives weight to physical objects and is responsible for the movement of planets around the sun.",
-]
-
-pairs = [format_instruction(task, query, doc) for query, doc in zip(queries, documents)]
-
-# Tokenize the input texts
-inputs = process_inputs(pairs)
+asyncio.run(run())

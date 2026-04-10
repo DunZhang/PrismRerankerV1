@@ -1,16 +1,23 @@
 model:
-  path: "/mnt/data/public_models/Qwen3-0.6B"
+  path: "/mnt/data/public_models/Qwen3.5-2B"
   max_seq_length: 8192
   dtype: "bfloat16"  # bfloat16 | float16 | float32 | null
   load_in_4bit: false
-  attn_implementation: "flash_attention_2"  # null 时走 transformers 默认实现
+  # Qwen3.5 是混合注意力：6 层 full attention + 18 层 linear attention。
+  # 本参数只影响 full attention 层。
+  # 想让 linear attention 层也走快速 kernel，需在环境里安装：
+  #   uv pip install causal-conv1d flash-linear-attention --no-build-isolation
+  # 没装也能跑，只是 18 层会 fallback 到 torch 实现（会有 warning，但训练正常）。
+  attn_implementation: "sdpa"
   gradient_checkpointing: true
 
 lora:
   enabled: true  # false 时走全参微调
-  r: 16
-  alpha: 16
+  r: 64
+  alpha: 128
   dropout: 0.0
+  # 覆盖 full attention（6/24）+ linear attention（18/24）+ 全部 MLP（24/24）。
+  # 不加 conv1d（depth-wise 卷积，LoRA 效果一般且占比小）。
   target_modules:
     - q_proj
     - k_proj
@@ -19,6 +26,11 @@ lora:
     - gate_proj
     - up_proj
     - down_proj
+    - in_proj_qkv
+    - in_proj_a
+    - in_proj_b
+    - in_proj_z
+    - out_proj
   use_rslora: false
 
 data:
@@ -34,7 +46,7 @@ training:
   num_epochs: 2
   learning_rate: 1.0e-5
   weight_decay: 0.01
-  warmup_steps: 200
+  warmup_steps: 1000
   lr_scheduler: "cosine"  # cosine | linear
   grad_accum_steps: 16
   max_grad_norm: 1.0  # 0 表示不做梯度裁剪
@@ -45,8 +57,8 @@ loss:
   gamma_sft: 1.0    # SFT cross-entropy loss 权重
 
 output:
-  dir: "/mnt/data/train_output/sft_llm_v1"
-  run_name: "sft_llm_v1"
+  dir: "/mnt/data/train_output/qwen3_5_2B_v2"
+  run_name: "qwen3_5_2B_v2"
   save_interval_samples: 1000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:

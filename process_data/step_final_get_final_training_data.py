@@ -5,7 +5,6 @@ from os.path import join
 
 def main(qp_contribution_evidence_path, rerank_distill_path):
     sft_data = []
-    q_list = []
     with open(qp_contribution_evidence_path, "r", encoding="utf8") as fr:
         for line in fr:
             item = json.loads(line)
@@ -15,8 +14,7 @@ def main(qp_contribution_evidence_path, rerank_distill_path):
             else:
                 item["loss_type"] = "sft"
             sft_data.append(json.dumps(item, ensure_ascii=False) + "\n")
-            q_list.append(item["query"])
-
+    random.shuffle(sft_data)
     ############################################
     rerank_data = []
     with open(rerank_distill_path, "r", encoding="utf8") as fr:
@@ -25,19 +23,22 @@ def main(qp_contribution_evidence_path, rerank_distill_path):
             item["revised_score"] = item.get("voyage-rerank-2_and_2.5_score") ** 1.609
             item["loss_type"] = "point-wise"
             rerank_data.append(json.dumps(item, ensure_ascii=False) + "\n")
-    # get dev data
     random.shuffle(rerank_data)
-    dev_data = rerank_data[:1000]
-    rerank_data = rerank_data[1000:]
-    for item in rerank_data:
-        q_list.append(json.loads(item)["query"])
-    q_set = set(q_list)
+    ############################################
+
+    q_list = list(set([json.loads(item)["query"] for item in sft_data]))
+    random.shuffle(q_list)
+    train_qs, dev_qs = set(q_list[250:]), set(q_list[:250])
     dev_data = [
         item
-        for item in dev_data
-        if json.loads(item)["query"] not in q_set
+        for item in sft_data
+        if json.loads(item)["query"] in dev_qs
     ]
-
+    sft_data = [
+        item
+        for item in sft_data
+        if json.loads(item)["query"] in train_qs
+    ]
     return rerank_data, sft_data, dev_data
 
 
@@ -51,26 +52,33 @@ if __name__ == "__main__":
         rerank_distill_path="G:/PrismRerankerV1Data/step6_kalm_web-search_query_document_pairs.jsonl"
 
     )
+    print("len(rerank1),len(sft1),len(dev1)", len(rerank1), len(sft1), len(dev1))
     rerank2, sft2, dev2 = main(
         qp_contribution_evidence_path="G:/PrismRerankerV1Data/data_extend2/step9_expanded2_web-search_query_document_contribution_evidence.jsonl",
         rerank_distill_path="G:/PrismRerankerV1Data/data_extend2/step6_expanded2_web-search_query_document_pairs.jsonl"
 
     )
-
+    print("len(rerank2),len(sft2),len(dev2)", len(rerank2), len(sft2), len(dev2))
+    if len(dev1) > len(dev2):
+        dev1, dev2 = dev2, dev1
+    dev2 = random.sample(dev2, len(dev1))
     # qp_contribution_evidence_path
     write_data = sft1 + sft2
+    # write_data = sft1
     random.shuffle(write_data)
     with open(join(save_dir, "final_sft.jsonl"), "w", encoding="utf8") as fw:
         fw.writelines(write_data)
 
     # rerank_distill_path
     write_data = rerank1 + rerank2
+    # write_data = rerank1
     random.shuffle(write_data)
     with open(join(save_dir, "final_point_wise.jsonl"), "w", encoding="utf8") as fw:
         fw.writelines(write_data)
 
     # dev data
     write_data = dev1 + dev2
+    # write_data = dev1
     random.shuffle(write_data)
     with open(join(save_dir, "final_dev_data.jsonl"), "w", encoding="utf8") as fw:
         fw.writelines(write_data)

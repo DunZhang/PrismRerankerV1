@@ -5,7 +5,6 @@ from typing import Any
 import torch
 
 from train_v2.config import TrainConfig
-from train_v2.constants import NO_TOKEN_ID, YES_TOKEN_ID
 
 DTYPE_MAP: dict[str, torch.dtype] = {
     "bfloat16": torch.bfloat16,
@@ -103,7 +102,9 @@ def extract_yes_no_logits(
     model: Any,
     input_ids: torch.Tensor,
     attention_mask: torch.Tensor,
+    yes_token_id: int,
+    no_token_id: int,
 ) -> torch.Tensor:
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
     last_logits = outputs.logits[:, -1, :]
-    return last_logits[:, YES_TOKEN_ID] - last_logits[:, NO_TOKEN_ID]
+    return last_logits[:, yes_token_id] - last_logits[:, no_token_id]

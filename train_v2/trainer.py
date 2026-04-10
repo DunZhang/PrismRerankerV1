@@ -20,7 +20,7 @@ from tqdm import tqdm
 from transformers import get_scheduler
 
 from train_v2.config import TrainConfig
-from train_v2.constants import NO_TOKEN_ID, YES_TOKEN_ID
+from train_v2.constants import resolve_yes_no_token_ids
 from train_v2.data import (
     FlatDataset,
     InterleavedDataset,
@@ -214,9 +214,7 @@ def compute_chunked_sft_loss(
 
     mask = shift_labels.view(-1) != -100
     if mask.sum() == 0:
-        return torch.tensor(
-            0.0, device=hidden_states.device, dtype=hidden_states.dtype
-        )
+        return torch.tensor(0.0, device=hidden_states.device, dtype=hidden_states.dtype)
 
     valid_hidden = shift_hidden.reshape(-1, shift_hidden.size(-1))[mask]
     valid_labels = shift_labels.view(-1)[mask]
@@ -284,7 +282,10 @@ class RerankerTrainer:
         # ---- Model ----
         self.accelerator.print(f"Loading model from {cfg.model.path} ...")
         self.model, self.tokenizer = load_model_and_tokenizer(cfg)
-        self.accelerator.print("Model loaded.")
+        self.yes_token_id, self.no_token_id = resolve_yes_no_token_ids(self.tokenizer)
+        self.accelerator.print(
+            f"Model loaded. YES={self.yes_token_id}, NO={self.no_token_id}"
+        )
 
         # ---- Training data ----
         sft_ds: FlatDataset | None = None
@@ -443,7 +444,8 @@ class RerankerTrainer:
                         hidden_states[:, pos : pos + 1, :]
                     ).squeeze(1)
                     student_z = (
-                        pos_logits[:, YES_TOKEN_ID] - pos_logits[:, NO_TOKEN_ID]
+                        pos_logits[:, self.yes_token_id]
+                        - pos_logits[:, self.no_token_id]
                     )
                     teacher_score = batch["teacher_score"].to(student_z.device)
                     loss_point = compute_point_loss(student_z, teacher_score)

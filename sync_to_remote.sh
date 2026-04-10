@@ -6,7 +6,8 @@ set -euo pipefail
 
 # ============ 配置 ============
 REMOTE_HOST="guangdong-b-is.cloud.infini-ai.com"
-REMOTE_PORT="42541"
+# REMOTE_PORT="42541"
+REMOTE_PORT="43242"
 REMOTE_USER="root"
 REMOTE_PATH="/mnt/data/codes/PrismRerankerV1/"
 LOCAL_PATH="/mnt/d/Codes/PrismRerankerV1/"

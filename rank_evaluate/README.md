@@ -24,7 +24,7 @@ uv sync
 ```bash
 python -m rank_evaluate.report_from_cache --run_tag neg30_seed42
 
-python -m rank_evaluate   --model prism-reranker-0.6b-vllm   --model_path /root/samples-12000-merged   --num_neg 30 --data_dir /mnt/data/PrismRerankerV1Data/dev  --max_queries 100
+python -m rank_evaluate   --model prism-reranker-0.6b-vllm   --model_path /root/4B-merged  --num_neg 30 --data_dir /mnt/data/PrismRerankerV1Data/dev  --max_queries 100
 
 
 python -m rank_evaluate   --model qwen3-reranker-0.6b-vllm  --model_path /mnt/data/public_models/Qwen3-Reranker-0.6B   --num_neg 30 --data_dir /mnt/data/PrismRerankerV1Data/dev  --max_queries 100

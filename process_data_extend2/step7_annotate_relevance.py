@@ -39,6 +39,31 @@ TEMPLATE_PATH = (
 )
 
 MAX_RETRIES = 2
+MAX_DOC_TOKENS = 8000
+_TOKEN_ENCODER: Any = None
+
+
+def _get_token_encoder() -> Any:
+    """Lazy-load tiktoken encoder (cl100k_base)."""
+    global _TOKEN_ENCODER
+    if _TOKEN_ENCODER is None:
+        import tiktoken
+
+        _TOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")
+    return _TOKEN_ENCODER
+
+
+def _truncate_document(document: str, max_tokens: int = MAX_DOC_TOKENS) -> str:
+    """Truncate document to at most ``max_tokens`` tokens via tiktoken.
+
+    Only used for relevance-judgement prompts; the original document is kept
+    for hashing and for the output rows.
+    """
+    encoder = _get_token_encoder()
+    tokens = encoder.encode(document)
+    if len(tokens) <= max_tokens:
+        return document
+    return encoder.decode(tokens[:max_tokens])
 
 
 def _setup_logging(verbose: bool = False) -> None:
@@ -477,7 +502,8 @@ def process(
         prompts: dict[int, str] = {}
         for idx in batch_indices:
             row = input_rows[idx]
-            prompts[idx] = template.render(query=row["query"], document=row["document"])
+            truncated_doc = _truncate_document(row["document"])
+            prompts[idx] = template.render(query=row["query"], document=truncated_doc)
 
         # Concurrent LLM calls
         results: dict[int, str | None] = {}

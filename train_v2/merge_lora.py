@@ -39,9 +39,10 @@ def merge_and_save(
 
 
 if __name__ == "__main__":
+
     merge_and_save(
-        base_model_path="/mnt/data/public_models/Qwen3-Reranker-0.6B",
-        adapter_path="/mnt/data/train_output/sft_test_v1/samples-12000/",
+        base_model_path="/mnt/data/public_models/Qwen3.5-2B",
+        adapter_path="/mnt/data/train_output/qwen3_5_2B_v2/epoch-1",
         # output_path="/mnt/data/train_output/test1_baseline/samples-400_megred_lora",
-        output_path="/root/samples-12000-merged",
+        output_path="/root/qwen3_5_2B_v2-epoch-1",
     )

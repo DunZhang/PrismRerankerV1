@@ -22,6 +22,11 @@ INPUT_PATH = Path("/mnt/g/PrismRerankerV1Data/step7_kalm_web-search_query_docume
 SAVE_PATH = Path("/mnt/g/PrismRerankerV1Data/step8_kalm_web-search_query_document_pairs_annotated_merged.jsonl")
 # =================================
 
+EXCLUDED_QUERY_SUBSTRINGS = [
+    "Dialogue History:",
+    "根据以下商品信息检索对应的商品描述",
+]
+
 MODELS = [
     "deepseek-chat_annotated_label",
     "google/gemini-3-flash-preview_annotated_label",
@@ -40,6 +45,7 @@ def merge(input_path: Path, save_path: Path) -> None:
     seen_models: set[str] = set()
 
     total_in = 0
+    excluded_by_query = 0
     with open(input_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -50,6 +56,11 @@ def merge(input_path: Path, save_path: Path) -> None:
             except json.JSONDecodeError:
                 continue
             total_in += 1
+
+            query_text = row.get("query", "")
+            if any(sub in query_text for sub in EXCLUDED_QUERY_SUBSTRINGS):
+                excluded_by_query += 1
+                continue
 
             model_name = row.pop("model_name", None)
             label = row.pop("annotated_label", None)
@@ -109,6 +120,7 @@ def merge(input_path: Path, save_path: Path) -> None:
 
     print(f"Models found: {model_names}", file=sys.stderr)
     print(f"Required models: {sorted(required_models)}", file=sys.stderr)
+    print(f"Excluded by query substring: {excluded_by_query}", file=sys.stderr)
     print(f"Skipped (no majority): {skipped}", file=sys.stderr)
     print(f"Label distribution: yes={total_yes}, no={total_no}", file=sys.stderr)
     print(
