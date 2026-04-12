@@ -25,7 +25,7 @@ dependencies = [
     "transformers>=5.0.0",
     "jinja2>=3.1.0",
     "openai>=2.24.0",
-    "datasets>=4.6.1",
+    "datasets<3",
     "tavily-python",
     "exa-py>=2.8.1",
     "zai-sdk>=0.2.2",
@@ -36,6 +36,7 @@ dependencies = [
     "pycountry>=26.2.16",
     "streamlit>=1.55.0",
     "lingua-language-detector>=2.2.0",
+    "faiss-cpu>=1.9.0",
 ]
 
 [[tool.uv.index]]
