@@ -460,7 +460,7 @@ output_dir/
 
 ```
 # 推荐：accelerate（会自动按 --num_processes 配 DDP）
-accelerate launch --num_processes 4 train_v2.py --config train_config_remote_qwen3.5.yaml
+accelerate launch --num_processes 4 train_v2.py --config train_config_remote_qwen3.5_0.8B.yaml
 
 # 或者 torchrun 也行
 uv run torchrun --nproc_per_node 4 train_v2/train_v2.py --config ...

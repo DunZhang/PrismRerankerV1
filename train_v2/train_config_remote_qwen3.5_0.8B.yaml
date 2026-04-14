@@ -1,0 +1,70 @@
+model:
+  path: "/mnt/data/public_models/Qwen3.5-0.8B"
+  max_seq_length: 10240
+  dtype: "bfloat16"  # bfloat16 | float16 | float32 | null
+  load_in_4bit: false
+  # Qwen3.5 是混合注意力：6 层 full attention + 18 层 linear attention。
+  # 本参数只影响 full attention 层。
+  # 想让 linear attention 层也走快速 kernel，需在环境里安装：
+  #   uv pip install causal-conv1d flash-linear-attention --no-build-isolation
+  # 没装也能跑，只是 18 层会 fallback 到 torch 实现（会有 warning，但训练正常）。
+  attn_implementation: "sdpa"
+  gradient_checkpointing: true
+
+lora:
+  enabled: true  # false 时走全参微调
+  r: 64
+  alpha: 128
+  dropout: 0.0
+  # 覆盖 full attention（6/24）+ linear attention（18/24）+ 全部 MLP（24/24）。
+  # 不加 conv1d（depth-wise 卷积，LoRA 效果一般且占比小）。
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+    - in_proj_qkv
+    - in_proj_a
+    - in_proj_b
+    - in_proj_z
+    - out_proj
+  use_rslora: false
+
+data:
+  sft_data_file: null
+  point_wise_data_file: "/mnt/data/PrismRerankerV1Data/final_point_wise.jsonl"
+  # point_wise_data_file: null
+  sft_ratio: 0.7  # 百分之sft_ratio 的训练步数是sft
+  train_samples: null  # null 表示全量，设为整数则取前 N 条
+  num_workers: 2
+  pin_memory: true
+
+training:
+  num_epochs: 2
+  learning_rate: 1.0e-5
+  weight_decay: 0.01
+  warmup_steps: 1000
+  lr_scheduler: "cosine"  # cosine | linear
+  grad_accum_steps: 32
+  max_grad_norm: 1.0  # 0 表示不做梯度裁剪
+  seed: 42
+
+loss:
+  gamma_point: 30.0  # point-wise MSE loss 权重
+  gamma_sft: 1.0    # SFT cross-entropy loss 权重
+
+output:
+  dir: "/mnt/data/train_output/qwen3_5_0_8B_v3"
+  run_name: "qwen3_5_0_8B_v3"
+  save_interval_samples: 10000  # 按全局 seen samples 定期保存 checkpoint
+
+logging:
+  wandb_project: "prism-reranker-v1"
+  wandb_mode: "offline"  # offline | online | disabled
+  log_interval_steps: 1
+
+
+# 和v1比，v2只用2.5的得分

@@ -438,11 +438,10 @@ class RerankerTrainer:
                 if "point-wise" in loss_type:
                     if "sft" in loss_type:
                         pos = batch["prompt_length"] - 1
+                        sliced = hidden_states[:, pos : pos + 1, :]
                     else:
-                        pos = -1
-                    pos_logits = self.lm_head(
-                        hidden_states[:, pos : pos + 1, :]
-                    ).squeeze(1)
+                        sliced = hidden_states[:, -1:, :]
+                    pos_logits = self.lm_head(sliced).squeeze(1)
                     student_z = (
                         pos_logits[:, self.yes_token_id]
                         - pos_logits[:, self.no_token_id]

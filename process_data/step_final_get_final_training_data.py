@@ -3,11 +3,24 @@ import random
 from os.path import join
 
 
+# 1.609是2个voyage
+# final_score = (0.2 * voyage_rerank_2_score + 0.5 * voyage_rerank_2_5_score + 0.3 * qwen3_reranker_4b_score) ** 2.2846
+
+def _add_score(item):
+    item["revised_score"] = (item.get("voyage-rerank-2.5_score") * 0.45
+                             + item.get("voyage-rerank-2_score") * 0.1
+                             + item.get("Qwen3-Reranker-4B_score") * 0.45
+                             ) ** 2.8835
+
+    return item
+
+
 def main(qp_contribution_evidence_path, rerank_distill_path):
     sft_data = []
     with open(qp_contribution_evidence_path, "r", encoding="utf8") as fr:
         for line in fr:
             item = json.loads(line)
+            item = _add_score(item)
             if (item["revised_score"] > 0.5 and item["annotated_label"] == "yes") or (
                     item["revised_score"] <= 0.5 and item["annotated_label"] == "no"):
                 item["loss_type"] = "point-wise;sft"
@@ -20,7 +33,7 @@ def main(qp_contribution_evidence_path, rerank_distill_path):
     with open(rerank_distill_path, "r", encoding="utf8") as fr:
         for line in fr:
             item = json.loads(line)
-            item["revised_score"] = item.get("voyage-rerank-2_and_2.5_score") ** 1.609
+            item = _add_score(item)
             item["loss_type"] = "point-wise"
             rerank_data.append(json.dumps(item, ensure_ascii=False) + "\n")
     random.shuffle(rerank_data)
@@ -49,13 +62,13 @@ if __name__ == "__main__":
 
     rerank1, sft1, dev1 = main(
         qp_contribution_evidence_path="G:/PrismRerankerV1Data/step9_kalm_web-search_query_document_pairs_contribution_evidence.jsonl",
-        rerank_distill_path="G:/PrismRerankerV1Data/step6_kalm_web-search_query_document_pairs.jsonl"
+        rerank_distill_path="G:/PrismRerankerV1Data/step6_kalm_web-search_query_document_pairs_balanced.jsonl"
 
     )
     print("len(rerank1),len(sft1),len(dev1)", len(rerank1), len(sft1), len(dev1))
     rerank2, sft2, dev2 = main(
         qp_contribution_evidence_path="G:/PrismRerankerV1Data/data_extend2/step9_expanded2_web-search_query_document_contribution_evidence.jsonl",
-        rerank_distill_path="G:/PrismRerankerV1Data/data_extend2/step6_expanded2_web-search_query_document_pairs.jsonl"
+        rerank_distill_path="G:/PrismRerankerV1Data/data_extend2/step6_expanded2_web-search_query_document_pairs_length-score-balance.jsonl"
 
     )
     print("len(rerank2),len(sft2),len(dev2)", len(rerank2), len(sft2), len(dev2))

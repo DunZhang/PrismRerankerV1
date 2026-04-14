@@ -52,8 +52,10 @@ def _parse_flat_sample(
         evidence = data.get("contribution_evidence", "")
         target_text = f"{label}\n{evidence}".strip()
 
+    keywords = (data.get("keywords","") or "").strip()
+    query = keywords if keywords else data["query"]
     return FlatSample(
-        query=data["query"],
+        query=query,
         document=data["document"],
         loss_type=loss_type,
         teacher_score=teacher_score,
