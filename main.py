@@ -1,17 +1,25 @@
-import datasets
-lang = 'zh'  # or any of the 16 languages
-miracl = datasets.load_dataset('miracl/miracl', lang, trust_remote_code=True)
+import requests
+import json
 
-# training set:
-for data in miracl['train']:  # or 'dev', 'testA'
-    query_id = data['query_id']
-    query = data['query']
-    positive_passages = data['positive_passages']
-    negative_passages = data['negative_passages']
-    print(positive_passages[0])
-    print(negative_passages[0])
-    break
-    # for entry in positive_passages:  # OR 'negative_passages'
-    #     docid = entry['docid']
-    #     title = entry['title']
-    #     text = entry['text']
+response = requests.post(
+  url="https://openrouter.ai/api/v1/rerank",
+  headers={
+    "Authorization": "Bearer <OPENROUTER_API_KEY>",
+    "Content-Type": "application/json",
+  },
+  data=json.dumps({
+    "model": "cohere/rerank-4-fast",
+    "query": "What is the capital of France?",
+    "documents": [
+      "Paris is the capital of France.",
+      "London is the capital of England.",
+      "Berlin is the capital of Germany."
+    ],
+    "top_n": 3
+  })
+)
+
+results = response.json()
+for result in results["results"]:
+  print(f"Index: {result['index']}, Score: {result['relevance_score']}")
+  print(f"  Document: {result['document']['text']}")

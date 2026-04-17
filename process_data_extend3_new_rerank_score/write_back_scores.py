@@ -1,10 +1,13 @@
-"""Write Qwen3-Reranker-4B scores back into the original JSONL files.
+"""Write reranker scores back into the original JSONL files.
+
+Supported score sources:
+    - cohere rerank-v4.0-fast
 
 For every input file listed in ``score_with_qwen3_reranker_4b.INPUT_FILES``:
     - read each row, hash (query, document) the same way the scoring script did
-    - look the hash up in the global score table
-    - if found: add ``Qwen3-Reranker-4B_score`` and keep the row
-    - if missing: drop the row and bump the ``dropped`` counter
+    - look the hash up in the cohere score table
+    - if found: add the cohere score field to the row
+    - if not found: keep the row as-is (no field added)
     - write to a sibling ``*.tmp`` then atomically replace the original
 """
 
@@ -20,11 +23,15 @@ from process_data_extend3_new_rerank_score.score_with_qwen3_reranker_4b import (
     _pair_hash,
 )
 
-SCORE_FILE: str = (
-    "/mnt/g/PrismRerankerV1Data/data_extend3_new_rerank_score/"
-    "qwen3_reranker_4b_scores.jsonl"
-)
-SCORE_KEY: str = "Qwen3-Reranker-4B_score"
+SCORE_SOURCES: list[dict[str, str]] = [
+    {
+        "file": (
+            "/mnt/g/PrismRerankerV1Data/data_extend3_new_rerank_score/"
+            "cohere_rerank_v4_fast_scores.jsonl"
+        ),
+        "key": "cohere_rerank_4_fast",
+    },
+]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,7 +40,7 @@ logging.basicConfig(
 logger = logging.getLogger("write_back_scores")
 
 
-def _load_score_table(path: str) -> dict[str, float]:
+def _load_score_table(path: str, key: str) -> dict[str, float]:
     """Stream the score JSONL and return ``{hash: score}``."""
     table: dict[str, float] = {}
     with open(path, encoding="utf-8") as f:
@@ -42,15 +49,17 @@ def _load_score_table(path: str) -> dict[str, float]:
             if not line:
                 continue
             obj = json.loads(line)
-            table[obj["hash"]] = obj[SCORE_KEY]
-    logger.info("loaded score table: %d entries", len(table))
+            table[obj["hash"]] = obj[key]
+    logger.info("loaded score table %s: %d entries", key, len(table))
     return table
 
 
-def _process_file(path: Path, table: dict[str, float]) -> tuple[int, int, int]:
-    """Rewrite one file in place. Returns (total, kept, dropped)."""
+def _process_file(
+    path: Path, tables: list[tuple[str, dict[str, float]]]
+) -> tuple[int, int, int]:
+    """Rewrite one file in place. Returns (total, enriched, missed)."""
     tmp_path = path.with_suffix(path.suffix + ".tmp")
-    total = kept = dropped = 0
+    total = enriched = missed = 0
 
     with (
         open(path, encoding="utf-8") as fin,
@@ -63,45 +72,52 @@ def _process_file(path: Path, table: dict[str, float]) -> tuple[int, int, int]:
             total += 1
             obj = json.loads(line)
             h = _pair_hash(obj["query"], obj["document"])
-            score = table.get(h)
-            if score is None:
-                dropped += 1
-                continue
-            obj[SCORE_KEY] = score
+            row_enriched = False
+            for key, table in tables:
+                score = table.get(h)
+                if score is not None:
+                    obj[key] = score
+                    row_enriched = True
+            if row_enriched:
+                enriched += 1
+            else:
+                missed += 1
             fout.write(json.dumps(obj, ensure_ascii=False) + "\n")
-            kept += 1
 
     os.replace(tmp_path, path)
-    return total, kept, dropped
+    return total, enriched, missed
 
 
 def main() -> None:
-    table = _load_score_table(SCORE_FILE)
+    tables: list[tuple[str, dict[str, float]]] = []
+    for src in SCORE_SOURCES:
+        table = _load_score_table(src["file"], src["key"])
+        tables.append((src["key"], table))
 
-    grand_total = grand_kept = grand_dropped = 0
+    grand_total = grand_enriched = grand_missed = 0
     for fpath in INPUT_FILES:
         path = Path(fpath)
         if not path.exists():
             logger.warning("missing input file, skipping: %s", fpath)
             continue
-        total, kept, dropped = _process_file(path, table)
+        total, enriched, missed = _process_file(path, tables)
         grand_total += total
-        grand_kept += kept
-        grand_dropped += dropped
+        grand_enriched += enriched
+        grand_missed += missed
         logger.info(
-            "%s: total=%d kept=%d dropped=%d",
+            "%s: total=%d enriched=%d missed=%d",
             path.name,
             total,
-            kept,
-            dropped,
+            enriched,
+            missed,
         )
 
     logger.info("=" * 60)
     logger.info(
-        "GRAND TOTAL: total=%d kept=%d dropped=%d",
+        "GRAND TOTAL: total=%d enriched=%d missed=%d",
         grand_total,
-        grand_kept,
-        grand_dropped,
+        grand_enriched,
+        grand_missed,
     )
 
 

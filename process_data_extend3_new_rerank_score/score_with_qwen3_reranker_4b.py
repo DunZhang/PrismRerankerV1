@@ -38,9 +38,9 @@ from evaluate_relevance_on_jina_bench.rerank_model_test import (
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-MODEL_PATH: str = "/mnt/data/public_models/Qwen3-Reranker-4B"
+MODEL_PATH: str = "/mnt/g/public_models/Qwen3-Reranker-4B"
 OUTPUT_PATH: Path = Path(
-    "/mnt/data/PrismRerankerV1Data/data_extend3_new_rerank_score/"
+    "/mnt/g/PrismRerankerV1Data/data_extend3_new_rerank_score/"
     "qwen3_reranker_4b_scores.jsonl"
 )
 BATCH_SIZE: int = 1

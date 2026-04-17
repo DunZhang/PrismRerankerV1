@@ -15,6 +15,7 @@ import wandb
 import yaml
 from accelerate import Accelerator
 from accelerate.utils import set_seed
+from openpyxl import Workbook, load_workbook
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import get_scheduler
@@ -26,9 +27,26 @@ from train_v2.data import (
     InterleavedDataset,
     make_train_collate_fn,
 )
+from train_v2.evaluator import run_evaluation
 from train_v2.modeling import get_model_internals, load_model_and_tokenizer
 
 BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+
+EVAL_XLSX_NAME = "eval_metrics.xlsx"
+EVAL_COLUMNS: list[str] = [
+    "checkpoint",
+    "samples_seen",
+    "optimizer_step",
+    "epoch",
+    "n_dev",
+    "n_valid_label",
+    "n_valid_teacher",
+    "pearson_teacher",
+    "spearman_teacher",
+    "pearson_label",
+    "auc",
+    "accuracy@0.5",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +316,7 @@ class RerankerTrainer:
         self.train_dataset = InterleavedDataset(
             sft_dataset=sft_ds,
             point_wise_dataset=pw_ds,
-            sft_ratio=cfg.data.sft_ratio,
+            sft_fraction=cfg.data.sft_fraction,
             seed=cfg.training.seed,
         )
 
@@ -519,19 +537,102 @@ class RerankerTrainer:
 
         self.metrics.reset()
 
+    # ---- Dev evaluation + Excel logging ----
+    def _eval_xlsx_path(self) -> Path:
+        return self.output_dir / EVAL_XLSX_NAME
+
+    def _append_eval_row(
+        self,
+        *,
+        checkpoint: str,
+        epoch: int | None,
+        metrics: dict[str, float],
+    ) -> None:
+        path = self._eval_xlsx_path()
+        if path.exists():
+            wb = load_workbook(path)
+            ws = wb.active
+        else:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "metrics"
+            ws.append(EVAL_COLUMNS)
+
+        row = [
+            checkpoint,
+            self.state.global_samples_seen,
+            self.state.optimizer_steps,
+            epoch if epoch is not None else "",
+            metrics.get("n_dev", ""),
+            metrics.get("n_valid_label", ""),
+            metrics.get("n_valid_teacher", ""),
+            metrics.get("pearson_teacher", ""),
+            metrics.get("spearman_teacher", ""),
+            metrics.get("pearson_label", ""),
+            metrics.get("auc", ""),
+            metrics.get("accuracy@0.5", ""),
+        ]
+        ws.append(row)
+        wb.save(path)
+
+    def _run_dev_evaluation(
+        self,
+        *,
+        checkpoint: str,
+        epoch: int | None,
+    ) -> None:
+        if not self.cfg.data.dev_path:
+            return
+        self.accelerator.print(f"[eval] running dev evaluation for {checkpoint} ...")
+        metrics = run_evaluation(
+            model=self.model,
+            transformer=self.transformer,
+            lm_head=self.lm_head,
+            tokenizer=self.tokenizer,
+            accelerator=self.accelerator,
+            yes_token_id=self.yes_token_id,
+            no_token_id=self.no_token_id,
+            dev_path=self.cfg.data.dev_path,
+            max_length=self.cfg.model.max_seq_length,
+            batch_size=self.cfg.data.eval_batch_size,
+        )
+        if self.accelerator.is_main_process:
+            self._append_eval_row(checkpoint=checkpoint, epoch=epoch, metrics=metrics)
+            if self.logger:
+                payload = " | ".join(
+                    f"{key}={value:.6f}"
+                    if isinstance(value, float)
+                    else f"{key}={value}"
+                    for key, value in metrics.items()
+                )
+                self.logger.info(f"[EVAL] {checkpoint} | {payload}")
+            self.accelerator.print(f"[eval] {checkpoint}: {metrics}")
+        self.accelerator.wait_for_everyone()
+
+    def _save_and_evaluate(
+        self,
+        *,
+        save_name: str,
+        epoch: int | None,
+    ) -> None:
+        save_path = self.output_dir / save_name
+        if self.accelerator.is_main_process:
+            save_model_bundle(
+                self.model,
+                self.tokenizer,
+                self.cfg,
+                save_path,
+                self.accelerator,
+            )
+        self.accelerator.wait_for_everyone()
+        self._run_dev_evaluation(checkpoint=save_name, epoch=epoch)
+
     # ---- Periodic checkpoint saving ----
     def _maybe_save_checkpoint(self) -> None:
         while self.state.global_samples_seen >= self.state.next_save_at:
             self.state.next_save_at += self.cfg.output.save_interval_samples
-            if self.accelerator.is_main_process:
-                save_model_bundle(
-                    self.model,
-                    self.tokenizer,
-                    self.cfg,
-                    self.output_dir / f"samples-{self.state.global_samples_seen}",
-                    self.accelerator,
-                )
-            self.accelerator.wait_for_everyone()
+            save_name = f"samples-{self.state.global_samples_seen}"
+            self._save_and_evaluate(save_name=save_name, epoch=None)
 
     # ---- Main training loop ----
     def train(self) -> None:
@@ -570,16 +671,11 @@ class RerankerTrainer:
                 progress=progress,
             )
 
-            # Save checkpoint at the end of each epoch
-            if self.accelerator.is_main_process:
-                save_model_bundle(
-                    self.model,
-                    self.tokenizer,
-                    self.cfg,
-                    self.output_dir / f"epoch-{epoch_number}",
-                    self.accelerator,
-                )
-            self.accelerator.wait_for_everyone()
+            # Save checkpoint at the end of each epoch — 保留 samples-{N} 前缀以对齐
+            epoch_save_name = (
+                f"samples-{self.state.global_samples_seen}-epoch-{epoch_number}"
+            )
+            self._save_and_evaluate(save_name=epoch_save_name, epoch=epoch_number)
 
         # ---- Final save & cleanup ----
         if self.accelerator.is_main_process:

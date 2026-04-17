@@ -39,10 +39,14 @@ class LoraConfig:
 class DataConfig:
     sft_data_file: str = ""
     point_wise_data_file: str = ""
-    sft_ratio: float = 0.3
+    # None / null → 不采样：两源并集走一轮（n_sft + n_pw 条）
+    sft_fraction: float | None = None
     train_samples: int | None = None
     num_workers: int = 0
     pin_memory: bool = True
+    # 评估用 dev 数据（JSONL）。为空字符串时 rerank-only trainer 跳过评估。
+    dev_path: str = ""
+    eval_batch_size: int = 4
 
 
 @dataclass
@@ -102,10 +106,12 @@ LEGACY_KEY_MAP: dict[str, tuple[str, str]] = {
     "use_rslora": ("lora", "use_rslora"),
     "sft_data_file": ("data", "sft_data_file"),
     "point_wise_data_file": ("data", "point_wise_data_file"),
-    "sft_ratio": ("data", "sft_ratio"),
+    "sft_fraction": ("data", "sft_fraction"),
     "train_samples": ("data", "train_samples"),
     "num_workers": ("data", "num_workers"),
     "pin_memory": ("data", "pin_memory"),
+    "dev_path": ("data", "dev_path"),
+    "eval_batch_size": ("data", "eval_batch_size"),
     "num_epochs": ("training", "num_epochs"),
     "learning_rate": ("training", "learning_rate"),
     "weight_decay": ("training", "weight_decay"),
@@ -239,8 +245,13 @@ class TrainConfig:
             raise ValueError("data.num_workers must be >= 0.")
         if self.data.train_samples is not None and self.data.train_samples <= 0:
             raise ValueError("data.train_samples must be > 0 or null.")
-        if not 0.0 <= self.data.sft_ratio <= 1.0:
-            raise ValueError("data.sft_ratio must be in [0.0, 1.0].")
+        if (
+            self.data.sft_fraction is not None
+            and not 0.0 <= self.data.sft_fraction <= 1.0
+        ):
+            raise ValueError("data.sft_fraction must be in [0.0, 1.0] or null.")
+        if self.data.eval_batch_size <= 0:
+            raise ValueError("data.eval_batch_size must be > 0.")
         if self.training.num_epochs <= 0:
             raise ValueError("training.num_epochs must be > 0.")
         if self.training.learning_rate <= 0:

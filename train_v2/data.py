@@ -52,7 +52,7 @@ def _parse_flat_sample(
         evidence = data.get("contribution_evidence", "")
         target_text = f"{label}\n{evidence}".strip()
 
-    keywords = (data.get("keywords","") or "").strip()
+    keywords = (data.get("keywords", "") or "").strip()
     query = keywords if keywords else data["query"]
     return FlatSample(
         query=query,
@@ -92,23 +92,27 @@ class FlatDataset(Dataset[FlatSample]):
 
 
 class InterleavedDataset(Dataset[FlatSample]):
-    """Mix two datasets by ``sft_ratio``.
+    """按 ``sft_fraction`` 混合两个数据源。
 
-    Each index deterministically selects from the SFT or point-wise dataset.
-    The effective length exhausts the larger (point-wise) dataset once while
-    oversampling the smaller (SFT) dataset as needed.
+    行为分三种：
+
+    - 只提供一个数据源：忽略 ``sft_fraction``，完整走一轮该数据源。
+    - ``sft_fraction is None`` 且两源都在：**不做采样**，两份并集走一轮，
+      每条样本恰好出现一次（长度 = n_sft + n_pw）。
+    - 两源都在且 ``sft_fraction`` 是 ``(0, 1)`` 内的小数：按该比例混合，
+      较大的源完整看一次，较小的源循环过采样到凑够比例。
     """
 
     def __init__(
         self,
         sft_dataset: FlatDataset | None,
         point_wise_dataset: FlatDataset | None,
-        sft_ratio: float = 0.3,
+        sft_fraction: float | None = None,
         seed: int = 42,
     ) -> None:
         self.sft_dataset = sft_dataset
         self.pw_dataset = point_wise_dataset
-        self.sft_ratio = sft_ratio
+        self.sft_fraction = sft_fraction
         self.seed = seed
 
         n_sft = len(sft_dataset) if sft_dataset else 0
@@ -117,44 +121,43 @@ class InterleavedDataset(Dataset[FlatSample]):
         if n_sft == 0 and n_pw == 0:
             raise ValueError("Both datasets are empty.")
 
-        # Only one source available — ignore ratio
+        # 单源：无采样，直接一轮
         if n_sft == 0:
             self._length = n_pw
-        elif n_pw == 0:
+            self._source = [False] * n_pw
+            self._local_idx = list(range(n_pw))
+            return
+        if n_pw == 0:
             self._length = n_sft
-        else:
-            self._length = max(
-                math.ceil(n_pw / (1.0 - sft_ratio)),
-                math.ceil(n_sft / sft_ratio),
-            )
+            self._source = [True] * n_sft
+            self._local_idx = list(range(n_sft))
+            return
 
-        # Pre-build the index mapping for reproducibility
+        # 两源都在且 sft_fraction 为 None：不采样，并集一轮
+        if sft_fraction is None:
+            self._length = n_sft + n_pw
+            self._source = [True] * n_sft + [False] * n_pw
+            self._local_idx = list(range(n_sft)) + list(range(n_pw))
+            return
+
+        # 两源都在且按比例混合（小源循环过采样）
+        self._length = max(
+            math.ceil(n_pw / (1.0 - sft_fraction)),
+            math.ceil(n_sft / sft_fraction),
+        )
         rng = random.Random(seed)
-        self._source: list[bool] = []  # True = SFT, False = point-wise
-        sft_indices: list[int] = []
-        pw_indices: list[int] = []
-
-        for _ in range(self._length):
-            use_sft = n_sft > 0 and (n_pw == 0 or rng.random() < sft_ratio)
-            self._source.append(use_sft)
-            if use_sft:
-                sft_indices.append(len(sft_indices) % n_sft)
-            else:
-                pw_indices.append(len(pw_indices) % n_pw)
-
-        self._sft_indices = sft_indices
-        self._pw_indices = pw_indices
-
-        # Build fast lookup: for each position, which local index to use
-        self._local_idx: list[int] = []
+        self._source = []
+        self._local_idx = []
         sft_cursor = 0
         pw_cursor = 0
-        for is_sft in self._source:
-            if is_sft:
-                self._local_idx.append(self._sft_indices[sft_cursor])
+        for _ in range(self._length):
+            use_sft = rng.random() < sft_fraction
+            self._source.append(use_sft)
+            if use_sft:
+                self._local_idx.append(sft_cursor % n_sft)
                 sft_cursor += 1
             else:
-                self._local_idx.append(self._pw_indices[pw_cursor])
+                self._local_idx.append(pw_cursor % n_pw)
                 pw_cursor += 1
 
     def __len__(self) -> int:

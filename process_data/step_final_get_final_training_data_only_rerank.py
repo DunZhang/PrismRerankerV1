@@ -64,16 +64,17 @@ def main(qp_contribution_evidence_path, rerank_distill_path):
 
     q_list = list(set([json.loads(item)["query"] for item in sft_data]))
     random.shuffle(q_list)
-    train_qs, dev_qs = set(q_list[250:]), set(q_list[:250])
+    train_qs, dev_qs = set(q_list[350:]), set(q_list[:350])
     dev_data = [
         item
         for item in sft_data
         if json.loads(item)["query"] in dev_qs
     ]
+    # 最后的sft数据不要"point-wise;sft"这种，因为这个数据rerank里有而且也是模型认可的得分
     sft_data = [
         item
         for item in sft_data
-        if json.loads(item)["query"] in train_qs
+        if json.loads(item)["query"] in train_qs and json.loads(item)["loss_type"] != "point-wise;sft"
     ]
     return rerank_data, sft_data, dev_data
 

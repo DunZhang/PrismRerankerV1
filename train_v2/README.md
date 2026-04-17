@@ -253,25 +253,23 @@ L_sft = cross_entropy(shift_logits, shift_labels, ignore_index=-100)
 加载逻辑是：
 
 1. 两个文件分别读成 `FlatDataset`
-2. 用 `InterleavedDataset` 按 `sft_ratio` 混在一起
+2. 用 `InterleavedDataset` 按 `sft_fraction` 混在一起
 3. DataLoader 再对这个混合后的 dataset 做 `shuffle=True`
 
-### `sft_ratio` 的真实含义
+### `sft_fraction` 的真实含义
 
-如果两个数据源都存在，混合数据集的目标长度是：
+- `null`（默认）：不做采样，两份数据直接并集走一轮，长度 = `n_sft + n_pw`，每条样本恰好出现一次。
+- `(0, 1)` 开区间的小数：按该比例混合，混合数据集长度是
 
-```text
-max(
-  ceil(n_pointwise / (1 - sft_ratio)),
-  ceil(n_sft / sft_ratio)
-)
-```
+  ```text
+  max(
+    ceil(n_pointwise / (1 - sft_fraction)),
+    ceil(n_sft / sft_fraction)
+  )
+  ```
 
-效果是：
-
-- 尽量让整体采样比例接近 `sft_ratio`
-- 较小的数据集会被**循环过采样**
-- 这个混合映射是按 `seed` 预先生成的，因此可复现
+  较小的数据集会被**循环过采样**以凑够比例；混合映射按 `seed` 预先生成，可复现。
+- `0.0` 或 `1.0`：会在构造时除零，直接报错；想要"纯 SFT"或"纯 point-wise"就把另一份数据文件设为 `null`。
 
 ### `train_samples` 的真实行为
 
@@ -327,7 +325,7 @@ max(
 
 - `sft_data_file`: SFT 数据路径，可为空
 - `point_wise_data_file`: point-wise 数据路径，可为空
-- `sft_ratio`: 混合采样时 SFT 占比
+- `sft_fraction`: `null` 表示不采样（两源并集走一轮）；`(0, 1)` 小数表示按该比例混合（小源过采样）
 - `train_samples`: 每个输入文件最多读取多少行
 - `num_workers`: DataLoader worker 数
 - `pin_memory`: CUDA 环境下是否启用 pin memory
@@ -335,10 +333,11 @@ max(
 注意：
 
 - 两个数据文件不能同时为空
-- 如果两个数据文件都提供了，`sft_ratio` 虽然校验上允许 `0.0` 和 `1.0`，但运行时会因为除零而出错
-- 所以当前代码的安全用法是：
-  - 同时提供两份数据时，`0 < sft_ratio < 1`
-  - 只提供一份数据时，`sft_ratio` 写什么都无所谓
+- 如果两个数据文件都提供了：
+  - `sft_fraction: null` → 两份并集走一轮（最自然、推荐默认）
+  - `sft_fraction` 为 `0 < x < 1` → 按比例混合，小源循环过采样
+  - `sft_fraction` 为 `0.0` 或 `1.0` → 运行时除零，禁用
+- 只提供一份数据时，`sft_fraction` 写什么都会被忽略
 
 ### `training`
 
@@ -461,8 +460,7 @@ output_dir/
 ```
 # 推荐：accelerate（会自动按 --num_processes 配 DDP）
 accelerate launch --num_processes 4 train_v2.py --config train_config_remote_qwen3.5_0.8B.yaml
+accelerate launch --num_processes 4 train_v2_rerank_only.py --config train_config_remote_qwen3.5_0.8B.yaml
 
-# 或者 torchrun 也行
-uv run torchrun --nproc_per_node 4 train_v2/train_v2.py --config ...
-首次用 accelerate 前建议跑一次 uv run accelerate config，把 DDP / mixed precision / num_processes 配好（或直接走命令行参数覆盖）。
+
 ```

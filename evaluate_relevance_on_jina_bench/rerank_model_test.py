@@ -36,12 +36,12 @@ from .eval_topk import compute_ndcg10_from_jsonl
 # ---------------------------------------------------------------------------
 # Global Config — edit these instead of passing CLI flags
 # ---------------------------------------------------------------------------
-MODEL_PATH: str = "/root/qwen3_5_0_8B_v2_epoch-1"
+MODEL_PATH: str = "/root/qwen3_5_0_8B_valid_cohere_samples-80000"
 # MODEL_PATH: str = "/mnt/data/public_models/Qwen3-Reranker-8B"
-INPUT_DIR: str = "/mnt/data/PrismRerankerV1Data/jina_bench_result"
+INPUT_DIR: str = "/mnt/g/PrismRerankerV1Data/jina_bench_result"
 # Parent results root — the effective output dir is ``<OUTPUT_DIR>/<model-name>``
 # so swapping MODEL_PATH never pollutes another model's file-level cache.
-OUTPUT_DIR: str = "/mnt/data/PrismRerankerV1Data/jina_bench_result"
+OUTPUT_DIR: str = "/mnt/g/PrismRerankerV1Data/jina_bench_result"
 BATCH_SIZE: int = 2
 MAX_MODEL_LEN: int = 10240
 

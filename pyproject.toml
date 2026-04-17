@@ -37,6 +37,7 @@ dependencies = [
     "streamlit>=1.55.0",
     "lingua-language-detector>=2.2.0",
     "faiss-cpu>=1.9.0",
+    "cohere>=6.1.0",
 ]
 
 [[tool.uv.index]]

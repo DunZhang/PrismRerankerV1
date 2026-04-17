@@ -25,7 +25,7 @@ data:
   sft_data_file: "/mnt/g/PrismRerankerV1Data/step10_sft_data.jsonl"
   # point_wise_data_file: "/mnt/g/PrismRerankerV1Data/step10_point_wise_data.jsonl"
   point_wise_data_file: null
-  sft_ratio: 0.7  # 30% 的训练步数是sft
+  sft_fraction: null  # null = 不采样，两份数据并集走一轮；填 (0,1) 小数则按该比例混合 + 过采样小源
   train_samples: null  # null 表示全量，设为整数则取前 N 条
   num_workers: 2
   pin_memory: true
