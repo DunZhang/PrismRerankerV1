@@ -7,19 +7,28 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
-DATA_PATH = Path("/mnt/g/PrismRerankerV1Data/final_sft.jsonl")
+DATA_PATHS = [
+    Path(
+        "/mnt/g/PrismRerankerV1Data/step8_kalm_web-search_query_document_pairs_annotated_merged.jsonl"
+    ),
+    Path(
+        "/mnt/g/PrismRerankerV1Data/data_extend2/step8_expanded2_web-search_query_document_pairs_annotated_merged.jsonl"
+    ),
+]
 OUTPUT_PATH = Path("/mnt/d/Codes/PrismRerankerV1/threshold_metrics.xlsx")
-STEP = 0.005
+SCORE_KEY = "voyage-rerank-2.5_score"
+STEP = 0.01
 
 
-def load_pairs(path: Path) -> list[tuple[float, int]]:
-    """Load (revised_score, label_int) pairs; label 1 for 'yes', 0 for 'no'."""
+def load_pairs(paths: list[Path], score_key: str) -> list[tuple[float, int]]:
+    """Load (score, label_int) pairs from all paths; label 1 for 'yes', 0 for 'no'."""
     pairs: list[tuple[float, int]] = []
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            d = json.loads(line)
-            label = 1 if d["annotated_label"] == "yes" else 0
-            pairs.append((float(d["revised_score"]), label))
+    for path in paths:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                d = json.loads(line)
+                label = 1 if d["annotated_label"] == "yes" else 0
+                pairs.append((float(d[score_key]), label))
     return pairs
 
 
@@ -97,7 +106,7 @@ def write_xlsx(results: list[dict[str, float]], out: Path) -> None:
 
 
 def main() -> None:
-    pairs = load_pairs(DATA_PATH)
+    pairs = load_pairs(DATA_PATHS, SCORE_KEY)
     n_pos = sum(1 for _, lab in pairs if lab == 1)
     print(f"Loaded {len(pairs)} rows; positives={n_pos}, negatives={len(pairs) - n_pos}")
     thresholds = [round(i * STEP, 4) for i in range(int(1.0 / STEP) + 1)]

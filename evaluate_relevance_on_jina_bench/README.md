@@ -21,6 +21,6 @@ uv run python -m evaluate_relevance_on_jina_bench beir --help
 python -m evaluate_relevance_on_jina_bench rerank_model_test
 
 # 重新计算得分
-uv run python -m evaluate_relevance_on_jina_bench eval_topk --results-dir  /mnt/g/PrismRerankerV1Data/jina_bench_result
+uv run python -m evaluate_relevance_on_jina_bench eval_topk --results-dir  /mnt/data/PrismRerankerV1Data/jina_bench_result
 
 ```

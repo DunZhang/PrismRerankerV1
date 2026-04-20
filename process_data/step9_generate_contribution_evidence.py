@@ -41,7 +41,7 @@ TEMPLATE_PATH = (
     / "relevance_extract.j2"
 )
 
-BATCH_SIZE = 266
+BATCH_SIZE = 256
 MAX_WORKERS = 128
 MAX_ROWS: int | None = None
 ENV_FILE: Path | None = None

@@ -7,9 +7,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 def merge_and_save(
-        base_model_path: str,
-        adapter_path: str,
-        output_path: str,
+    base_model_path: str,
+    adapter_path: str,
+    output_path: str,
 ) -> None:
     """加载基础模型和 LoRA adapter，合并后保存。"""
     output_dir = Path(output_path)
@@ -39,18 +39,9 @@ def merge_and_save(
 
 
 if __name__ == "__main__":
-    for i, j in [
-        ("samples-10000", "prism_reranker_v1_4B_sft_samples-10000"),
-        ("samples-15000", "prism_reranker_v1_4B_sft_samples-15000"),
-        ("samples-20000", "prism_reranker_v1_4B_sft_samples-20000"),
-        ("samples-23829-epoch-1", "prism_reranker_v1_4B_sft_samples-23829-epoch-1"),
-        ("samples-25001", "prism_reranker_v1_4B_sft_samples-25001"),
-        ("samples-30001", "prism_reranker_v1_4B_sft_samples-30001"),
-        ("samples-35001", "prism_reranker_v1_4B_sft_samples-35001")
-    ]:
-        merge_and_save(
-            base_model_path="/mnt/data/public_models/Qwen3.5-4B",
-            adapter_path=f"/mnt/data/train_output/prism_reranker_v1_4B_sft/{i}",
-            # output_path="/mnt/data/train_output/test1_baseline/samples-400_megred_lora",
-            output_path=f"/root/{j}",
-        )
+    merge_and_save(
+        base_model_path="/mnt/data/public_models/Qwen3.5-4B",
+        adapter_path=f"/mnt/data/train_output/prism_reranker_v1_4B_sft/samples-40003",
+        # output_path="/mnt/data/train_output/test1_baseline/samples-400_megred_lora",
+        output_path=f"/root/prism_reranker_v1_4B_sft_samples-40003",
+    )

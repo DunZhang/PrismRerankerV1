@@ -27,12 +27,12 @@ from shared.env import DEFAULT_PROJECT_ENV_FILE, load_optional_dotenv
 log = logging.getLogger("generate_contribution_evidence")
 
 INPUT_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/"
-    "step8_kalm_web-search_query_document_pairs_annotated_merged.jsonl"
+    "/mnt/g/PrismRerankerV1Data/data_extend2/"
+    "step8_expanded2_web-search_query_document_pairs_annotated_merged.jsonl"
 )
 SAVE_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/"
-    "step9_kalm_web-search_query_document_pairs_contribution_evidence.jsonl"
+    "/mnt/g/PrismRerankerV1Data/data_extend2/"
+    "step9_expanded2_web-search_query_document_contribution_evidence.jsonl"
 )
 TEMPLATE_PATH = (
     Path(__file__).resolve().parents[1]
@@ -41,7 +41,7 @@ TEMPLATE_PATH = (
     / "relevance_extract.j2"
 )
 
-BATCH_SIZE = 266
+BATCH_SIZE = 256
 MAX_WORKERS = 128
 MAX_ROWS: int | None = None
 ENV_FILE: Path | None = None

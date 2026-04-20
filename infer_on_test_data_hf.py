@@ -36,23 +36,26 @@ from shared.prompts import (
 # prism_reranker_v1_4B_sft_samples-30001
 # prism_reranker_v1_4B_sft_samples-35001
 # ---------------------------------------------------------------------------
-MODEL_PATH: str = "/root/prism_reranker_v1_4B_sft_samples-35001"
+MODEL_PATH: str = "/root/prism_reranker_v1_4B_sft_samples-40003"
 
 
 INPUT_PATH: str = "/mnt/data/PrismRerankerV1Data/final_dev_data.jsonl"
-OUTPUT_PATH: str = (f"/mnt/data/PrismRerankerV1Data/relevance_contribution_evidence_evaluate_result/"
-                    f"{os.path.basename(MODEL_PATH)}.jsonl")
+OUTPUT_PATH: str = (
+    f"/mnt/data/PrismRerankerV1Data/relevance_contribution_evidence_evaluate_result/"
+    f"{os.path.basename(MODEL_PATH)}.jsonl"
+)
 
 MAX_SAMPLES: int = 400000
 MAX_MODEL_LEN: int = 10240
 MAX_NEW_TOKENS: int = 2048
 BATCH_SIZE: int = 1
 NUM_GPUS: int = torch.cuda.device_count() or 1
+# 是否在每条结果里写 gen_entropy_after_yes（yes 之后生成 token 的全词表 entropy 均值）
+# 用来诊断 SFT 过度训练 / 多样性坍缩；关掉则完全跳过这步计算。
+COMPUTE_GEN_ENTROPY: bool = False
 
 
-def build_prompt_ids(
-        row: dict[str, Any], tokenizer: AutoTokenizer
-) -> list[int]:
+def build_prompt_ids(row: dict[str, Any], tokenizer: AutoTokenizer) -> list[int]:
     """Render and tokenize a single prompt."""
     raw = render_raw_prompt(
         row["query"],
@@ -63,8 +66,42 @@ def build_prompt_ids(
     return tokenizer.encode(raw, add_special_tokens=False)[:MAX_MODEL_LEN]
 
 
+def _compute_entropy_after_yes(
+    *,
+    gen_ids: list[int],
+    step_scores: tuple[torch.Tensor, ...],
+    sample_idx: int,
+    yes_token_id: int,
+    eos_token_id: int | None,
+) -> float | None:
+    """返回 "yes 之后每一步生成 token" 的全词表 entropy 均值。
+
+    只有首个生成 token 为 ``yes`` 时才有意义。其他情况返回 ``None``。
+    统计范围：从 step 1 到首个 eos（含 eos 那一步）。若没有 eos 就到生成结束。
+    """
+    if not gen_ids or gen_ids[0] != yes_token_id or len(gen_ids) < 2:
+        return None
+
+    real_len = len(gen_ids)
+    if eos_token_id is not None:
+        for k in range(1, len(gen_ids)):
+            if gen_ids[k] == eos_token_id:
+                real_len = k + 1
+                break
+    if real_len <= 1:
+        return None
+
+    device = step_scores[0].device
+    h_sum = torch.zeros(1, device=device, dtype=torch.float32)
+    for s in range(1, real_len):
+        logits = step_scores[s][sample_idx].float()
+        log_p = torch.log_softmax(logits, dim=-1)
+        h_sum += -(log_p.exp() * log_p).sum()
+    return float((h_sum / (real_len - 1)).item())
+
+
 def left_pad_batch(
-        batch_ids: list[list[int]], pad_token_id: int, device: str | torch.device
+    batch_ids: list[list[int]], pad_token_id: int, device: str | torch.device
 ) -> tuple[torch.Tensor, torch.Tensor, list[int]]:
     """Left-pad a batch of token lists and return (input_ids, attention_mask, prompt_lens)."""
     prompt_lens = [len(ids) for ids in batch_ids]
@@ -111,7 +148,7 @@ def infer_worker(rank: int, world_size: int, rows: list[dict[str, Any]]) -> None
     results: list[dict[str, Any]] = []
     total = len(shard)
     for batch_start in range(0, total, BATCH_SIZE):
-        batch_rows = shard[batch_start: batch_start + BATCH_SIZE]
+        batch_rows = shard[batch_start : batch_start + BATCH_SIZE]
         batch_ids = [build_prompt_ids(row, tokenizer) for row in batch_rows]
 
         input_ids, attention_mask, _ = left_pad_batch(
@@ -139,11 +176,20 @@ def infer_worker(rank: int, world_size: int, rows: list[dict[str, Any]]) -> None
         scores = (yes_ps / (yes_ps + no_ps)).tolist()
 
         padded_prompt_len = input_ids.shape[1]
+        eos_id = tokenizer.eos_token_id
         for j, row in enumerate(batch_rows):
             gen_ids = gen_out.sequences[j, padded_prompt_len:].tolist()
             pred_text = tokenizer.decode(gen_ids, skip_special_tokens=True)
             row["pred_score"] = scores[j]
             row["pred_text"] = pred_text
+            if COMPUTE_GEN_ENTROPY:
+                row["gen_entropy_after_yes"] = _compute_entropy_after_yes(
+                    gen_ids=gen_ids,
+                    step_scores=gen_out.scores,
+                    sample_idx=j,
+                    yes_token_id=yes_token_id,
+                    eos_token_id=eos_id,
+                )
             results.append(row)
 
         done = min(batch_start + BATCH_SIZE, total)
@@ -166,7 +212,9 @@ def main() -> None:
         row["_original_idx"] = i
 
     world_size = min(NUM_GPUS, len(rows))
-    print(f"Total samples: {len(rows)}, using {world_size} GPU(s), batch_size={BATCH_SIZE}")
+    print(
+        f"Total samples: {len(rows)}, using {world_size} GPU(s), batch_size={BATCH_SIZE}"
+    )
 
     if world_size <= 1:
         # Single GPU: run directly without spawning

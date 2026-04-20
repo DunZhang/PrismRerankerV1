@@ -40,11 +40,18 @@ DEFAULT_EVAL_INSTRUCTION: str = (
 )
 
 TRAINING_INSTRUCTION: str = (
-    "Given a query and a document, judge whether the document "
-    'is relevant to the query. Answer "yes" or "no", '
-    "then provide in XML:\n"
-    "1. <contribution>: what the document contributes to the query.\n"
-    "2. <evidence>: a self-contained rewrite of relevant content."
+    'Judge if the document is relevant to the query. Reply "yes" or "no".\n'
+    'On "yes", also emit:\n'
+    "<contribution>One sentence covering every core point the document "
+    "contributes to the query, without elaboration.</contribution>\n"
+    "<evidence>Self-contained rewrite of the query-relevant content. Rules:\n"
+    "- Faithful: rephrase only; add or infer nothing.\n"
+    "- Self-contained: evidence alone must fully answer the query.\n"
+    "- Concise: drop query-irrelevant background.\n"
+    "- Verbatim (no translation): proper nouns, terms, abbreviations, "
+    "numbers, dates, code, URLs.\n"
+    "- Narrative text uses the document's primary language."
+    "</evidence>"
 )
 
 

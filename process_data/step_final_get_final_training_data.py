@@ -17,14 +17,14 @@ from os.path import join
 
 def _add_score(item):
     try:
-        item["revised_score"] = item["voyage-rerank-2.5_score"] ** 1.8499047
+        item["revised_score"] = item["voyage-rerank-2.5_score"] ** 1.45
         return item
     except:
         return None
 
 
 def main(qp_contribution_evidence_path, rerank_distill_path):
-    sft_data = []
+    sft_data, sft_qd = [], []
     with open(qp_contribution_evidence_path, "r", encoding="utf8") as fr:
         for line in fr:
             item = json.loads(line)
@@ -36,11 +36,13 @@ def main(qp_contribution_evidence_path, rerank_distill_path):
                 item["loss_type"] = "point-wise;sft"
             else:
                 item["loss_type"] = "sft"
+            sft_qd.append(item["query"] + item["document"])
             sft_data.append(json.dumps(item, ensure_ascii=False) + "\n")
     random.shuffle(sft_data)
+    sft_qd = set(sft_qd)
     ############################################
     rerank_data = []
-    keys = set()
+    keys = sft_qd
     if isinstance(rerank_distill_path, str):
         rerank_distill_paths = [rerank_distill_path]
     else:

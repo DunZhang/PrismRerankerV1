@@ -1,5 +1,5 @@
 model:
-  path: "/mnt/data/public_models/Qwen3.5-4B"
+  path: "/mnt/data/public_models/Qwen3.5-8B"
   max_seq_length: 10240
   dtype: "bfloat16"  # bfloat16 | float16 | float32 | null
   load_in_4bit: false
@@ -60,8 +60,8 @@ loss:
   gamma_sft: 1.0    # SFT cross-entropy loss 权重
 
 output:
-  dir: "/mnt/data/train_output/prism_reranker_v1_4B_sft"
-  run_name: "prism_reranker_v1_4B_sft"
+  dir: "/mnt/data/train_output/prism_reranker_v1_8B_sft"
+  run_name: "prism_reranker_v1_8B_sft"
   save_interval_samples: 5000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:
