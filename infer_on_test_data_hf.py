@@ -28,10 +28,20 @@ from shared.prompts import (
 
 # ---------------------------------------------------------------------------
 # Global Config
+# prism_reranker_v1_4B_sft_samples-10000
+# prism_reranker_v1_4B_sft_samples-15000
+# prism_reranker_v1_4B_sft_samples-20000
+# prism_reranker_v1_4B_sft_samples-23829-epoch-1
+# prism_reranker_v1_4B_sft_samples-25001
+# prism_reranker_v1_4B_sft_samples-30001
+# prism_reranker_v1_4B_sft_samples-35001
 # ---------------------------------------------------------------------------
-MODEL_PATH: str = "/root/qwen3_5_2B_v2-epoch-1"
+MODEL_PATH: str = "/root/prism_reranker_v1_4B_sft_samples-35001"
+
+
 INPUT_PATH: str = "/mnt/data/PrismRerankerV1Data/final_dev_data.jsonl"
-OUTPUT_PATH: str = "/mnt/data/PrismRerankerV1Data/qwen3_5_2B_v2_pred_res.jsonl"
+OUTPUT_PATH: str = (f"/mnt/data/PrismRerankerV1Data/relevance_contribution_evidence_evaluate_result/"
+                    f"{os.path.basename(MODEL_PATH)}.jsonl")
 
 MAX_SAMPLES: int = 400000
 MAX_MODEL_LEN: int = 10240
@@ -41,7 +51,7 @@ NUM_GPUS: int = torch.cuda.device_count() or 1
 
 
 def build_prompt_ids(
-    row: dict[str, Any], tokenizer: AutoTokenizer
+        row: dict[str, Any], tokenizer: AutoTokenizer
 ) -> list[int]:
     """Render and tokenize a single prompt."""
     raw = render_raw_prompt(
@@ -54,7 +64,7 @@ def build_prompt_ids(
 
 
 def left_pad_batch(
-    batch_ids: list[list[int]], pad_token_id: int, device: str | torch.device
+        batch_ids: list[list[int]], pad_token_id: int, device: str | torch.device
 ) -> tuple[torch.Tensor, torch.Tensor, list[int]]:
     """Left-pad a batch of token lists and return (input_ids, attention_mask, prompt_lens)."""
     prompt_lens = [len(ids) for ids in batch_ids]
@@ -101,7 +111,7 @@ def infer_worker(rank: int, world_size: int, rows: list[dict[str, Any]]) -> None
     results: list[dict[str, Any]] = []
     total = len(shard)
     for batch_start in range(0, total, BATCH_SIZE):
-        batch_rows = shard[batch_start : batch_start + BATCH_SIZE]
+        batch_rows = shard[batch_start: batch_start + BATCH_SIZE]
         batch_ids = [build_prompt_ids(row, tokenizer) for row in batch_rows]
 
         input_ids, attention_mask, _ = left_pad_batch(

@@ -579,7 +579,7 @@ def main() -> None:
     parser.add_argument(
         "--max_workers",
         type=int,
-        default=32,
+        default=16,
         help="Max parallel LLM requests per batch (default: 32).",
     )
     parser.add_argument(

@@ -64,7 +64,7 @@ def main(qp_contribution_evidence_path, rerank_distill_path):
 
     q_list = list(set([json.loads(item)["query"] for item in sft_data]))
     random.shuffle(q_list)
-    train_qs, dev_qs = set(q_list[250:]), set(q_list[:250])
+    train_qs, dev_qs = set(q_list[350:]), set(q_list[:350])
     dev_data = [
         item
         for item in sft_data

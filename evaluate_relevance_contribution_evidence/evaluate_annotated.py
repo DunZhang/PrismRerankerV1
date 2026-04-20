@@ -1,21 +1,19 @@
-"""Evaluate Qwen reranker predictions with an LLM judge.
+"""Evaluate the quality of annotated contribution/evidence with an LLM judge.
 
-Two tasks:
-1. Extract yes/no from ``pred_text`` and compare to ``annotated_label``.
-2. For rows where both labels are ``yes``, ask a reasoning model
-   (Kimi k2.5 or DeepSeek deepseek-reasoner) to score the model-generated
-   contribution/evidence against the original ``relevance_extract.j2`` rules.
+Difference from ``evaluate.py``:
+- The source field is ``contribution_evidence`` (not ``pred_text``).
+- ``contribution_evidence`` has NO leading yes/no; it's the raw
+  ``<contribution>...</contribution><evidence>...</evidence>`` produced by the
+  annotation LLM. The yes/no lives in ``annotated_label``.
+- Only rows with ``annotated_label == "yes"`` are judged; ``no`` rows have no
+  contribution/evidence to score and are written through as-is.
 
 Output: a new JSONL file with the original fields plus evaluation fields.
 
 Usage:
-    # Kimi k2.5 (default)
-    uv run python -m evaluate_relevance_contribution_evidence.evaluate \\
-        --input_path /mnt/g/PrismRerankerV1Data/Qwen3.5-2B-samples-4000-result.jsonl \\
-        --save_path  /mnt/g/PrismRerankerV1Data/Qwen3.5-2B-samples-4000-result.eval.jsonl
-
-    # DeepSeek deepseek-reasoner
-    uv run python -m evaluate_relevance_contribution_evidence.evaluate --provider deepseek ...
+    uv run python -m evaluate_relevance_contribution_evidence.evaluate_annotated \\
+        --input_path /mnt/g/PrismRerankerV1Data/step9_....jsonl \\
+        --save_path  /mnt/g/PrismRerankerV1Data/step9_...._eval.jsonl
 """
 
 from __future__ import annotations
@@ -41,15 +39,15 @@ from evaluate_relevance_contribution_evidence.entity_fidelity import (
 )
 from shared.env import DEFAULT_PROJECT_ENV_FILE, load_optional_dotenv
 
-log = logging.getLogger("evaluate_relevance_contribution_evidence")
+log = logging.getLogger("evaluate_annotated")
 
 DEFAULT_INPUT_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/relevance_contribution_evidence_evaluate_result/" \
-    "prism_reranker_v1_4B_sft_samples-35001.jsonl"
+    "/mnt/g/PrismRerankerV1Data/relevance_contribution_evidence_evaluate_result/"
+    "prism_reranker_v1_4B_sft_samples-10000.jsonl"
 )
 DEFAULT_SAVE_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/relevance_contribution_evidence_evaluate_result/" \
-    f"{os.path.basename(DEFAULT_INPUT_PATH)[:-6]}_eval.jsonl"
+    "/mnt/g/PrismRerankerV1Data/relevance_contribution_evidence_evaluate_result/"
+    "label_eval.jsonl"
 )
 TEMPLATE_PATH = (
     Path(__file__).resolve().parent / "templates" / "judge_contribution_evidence.j2"
@@ -57,7 +55,6 @@ TEMPLATE_PATH = (
 MAX_RETRIES = 2
 MAX_COMPLETION_TOKENS = 4096
 
-# Provider-specific config: default model, base_url, env var for api key.
 PROVIDER_CONFIGS: dict[str, dict[str, str]] = {
     "kimi": {
         "default_model": "kimi-k2.5",
@@ -121,55 +118,14 @@ def _pair_hash(query: str, document: str) -> str:
     return hashlib.sha256(f"{query}\n{document}".encode("utf-8")).hexdigest()
 
 
-def _extract_label(text: str | None) -> str | None:
-    """Return 'yes' / 'no' from the first token of text, else None."""
-    if not text or not text.strip():
-        return None
-    first_token = text.strip().split()[0].lower().rstrip(".,;:!?")
-    if first_token in ("yes", "no"):
-        return first_token
-    return None
-
-
-def compute_format_score(pred_text: str | None) -> float:
-    """Rule-based format reward in [0, 1].
-
-    Scoring contract:
-    - +0.4 if first token is ``yes`` / ``no`` (label parseable)
-    - If label == "yes": +0.3 for each of ``<contribution>`` / ``<evidence>``
-      tags present with body > 10 chars (both required for a full 1.0)
-    - If label == "no": +0.6 iff the entire output is just "no" (optional
-      trailing punctuation); any extra content — including ``<contribution>``
-      or ``<evidence>`` tags, or free-form commentary — forfeits the bonus
-    """
-    if not pred_text:
-        return 0.0
-    label = _extract_label(pred_text)
-    if label is None:
-        return 0.0
-    score = 0.4
-    if label == "yes":
-        contrib = _CONTRIB_RE.search(pred_text)
-        if contrib and len(contrib.group(1).strip()) > 10:
-            score += 0.3
-        evidence = _EVIDENCE_RE.search(pred_text)
-        if evidence and len(evidence.group(1).strip()) > 10:
-            score += 0.3
-    else:
-        cleaned = pred_text.strip().lower().rstrip(".,;:!?")
-        if cleaned == "no":
-            score += 0.6
-    return score
-
-
-def _parse_contribution_evidence(pred_text: str) -> tuple[str | None, str | None]:
-    """Extract <contribution> and <evidence> bodies from pred_text, if present."""
+def _parse_contribution_evidence(text: str) -> tuple[str | None, str | None]:
+    """Extract <contribution> and <evidence> bodies from the raw text."""
     contribution = None
     evidence = None
-    m = _CONTRIB_RE.search(pred_text)
+    m = _CONTRIB_RE.search(text)
     if m:
         contribution = m.group(1).strip() or None
-    m = _EVIDENCE_RE.search(pred_text)
+    m = _EVIDENCE_RE.search(text)
     if m:
         evidence = m.group(1).strip() or None
     return contribution, evidence
@@ -211,8 +167,7 @@ def _load_done_hashes(save_path: Path) -> set[str]:
     """Hashes of (query, document) rows already written to save_path.
 
     Rows with ``eval_status == "failed"`` are treated as NOT done so they get
-    retried on resume. To keep the file consistent with the returned set, the
-    save file is rewritten in place to drop those failed rows.
+    retried on resume. The save file is rewritten in place to drop those rows.
     """
     done: set[str] = set()
     if not save_path.exists() or save_path.stat().st_size == 0:
@@ -268,7 +223,7 @@ def _load_template() -> jinja2.Template:
 
 
 # ---------------------------------------------------------------------------
-# Kimi judge call
+# Judge call
 # ---------------------------------------------------------------------------
 
 
@@ -282,14 +237,6 @@ def _call_judge(
     """Call the judge model via an OpenAI-compatible client.
 
     Returns ``(content, reasoning_content)``. Both may be ``None`` on failure.
-
-    - ``kimi``: k2.5 thinking mode is on by default; temperature is fixed at
-      1.0 when thinking is enabled.
-    - ``deepseek``: ``deepseek-reasoner`` silently ignores sampling params,
-      so we don't pass ``temperature``.
-    - ``bailian``: DashScope OpenAI-compatible endpoint; ``enable_thinking``
-      toggles DeepSeek reasoning. When True, reasoning is delivered via
-      streamed ``delta.reasoning_content`` chunks, so we switch to streaming.
     """
     kwargs: dict[str, Any] = {
         "model": model_name,
@@ -361,24 +308,16 @@ def _build_client(provider: str, api_key: str) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# Row-level evaluation
+# Row-level enrichment
 # ---------------------------------------------------------------------------
 
 
-def _enrich_label_fields(row: dict[str, Any]) -> dict[str, Any]:
-    """Add pred_label / label_match / parsed_* fields to a copy of row."""
+def _enrich_parsed_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """Add parsed_contribution / parsed_evidence fields to a copy of row."""
     out = dict(row)
-    pred_text_raw: str = row.get("pred_text") or ""
-    pred_text = pred_text_raw.strip()
-    pred_label = _extract_label(pred_text)
-    annotated = row.get("annotated_label")
-
-    out["pred_label"] = pred_label
-    out["label_match"] = "yes" if pred_label == annotated else "no"
-    out["format_score"] = compute_format_score(pred_text_raw)
-
-    if pred_label == "yes":
-        contribution, evidence = _parse_contribution_evidence(pred_text)
+    ce_raw: str = row.get("contribution_evidence") or ""
+    if row.get("annotated_label") == "yes" and ce_raw.strip():
+        contribution, evidence = _parse_contribution_evidence(ce_raw)
     else:
         contribution, evidence = None, None
     out["parsed_contribution"] = contribution
@@ -389,7 +328,6 @@ def _enrich_label_fields(row: dict[str, Any]) -> dict[str, Any]:
 def _should_judge(row: dict[str, Any]) -> bool:
     return (
         row.get("annotated_label") == "yes"
-        and row.get("pred_label") == "yes"
         and bool(row.get("parsed_contribution"))
         and bool(row.get("parsed_evidence"))
     )
@@ -452,7 +390,6 @@ def process(
     )
     done_hashes = _load_done_hashes(save_path)
 
-    # First pass: enrich labels for all rows (cheap, no LLM).
     enriched: list[dict[str, Any]] = []
     pending: list[int] = []
     already_done = 0
@@ -461,19 +398,20 @@ def process(
         h = _pair_hash(row["query"], row["document"])
         if h in done_hashes:
             already_done += 1
-            enriched.append({})  # placeholder; skipped rows not re-emitted
+            enriched.append({})
             continue
-        enriched_row = _enrich_label_fields(row)
+        enriched_row = _enrich_parsed_fields(row)
         enriched.append(enriched_row)
         if _should_judge(enriched_row):
             pending.append(idx)
 
+    pending_set = set(pending)
     to_pass_through = [
-        idx for idx in range(scan_limit) if enriched[idx] and idx not in set(pending)
+        idx for idx in range(scan_limit) if enriched[idx] and idx not in pending_set
     ]
 
     log.info("=" * 60)
-    log.info("Pred Quality Evaluation")
+    log.info("Annotated Quality Evaluation")
     log.info("=" * 60)
     log.info("Input:               %s", input_path)
     log.info("Output:              %s", save_path)
@@ -488,16 +426,15 @@ def process(
 
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 1) Write pass-through rows in order (no LLM needed).
+    # 1) Pass-through rows: annotated_label != "yes", or yes-but-parse-failed.
     if to_pass_through:
         pass_rows: list[dict[str, Any]] = []
         for idx in to_pass_through:
             row = dict(enriched[idx])
-            if row.get("annotated_label") == "yes" and row.get("pred_label") == "yes":
-                # yes-yes but parse failed
+            if row.get("annotated_label") == "yes":
                 row["eval_status"] = "skipped_no_parse"
             else:
-                row["eval_status"] = "skipped_not_yesyes"
+                row["eval_status"] = "skipped_not_yes"
             row["eval_scores"] = None
             row["eval_reason"] = None
             row["eval_thinking"] = None
@@ -515,7 +452,7 @@ def process(
         log.info("Nothing to judge.")
         return
 
-    # 2) Judge yes-yes rows.
+    # 2) Judge yes rows with parsed contribution + evidence.
     written = 0
     failed = 0
     t_start = time.monotonic()
@@ -620,7 +557,7 @@ def process(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Evaluate Qwen reranker predictions with Kimi k2.5 as judge.",
+        description="Evaluate annotated contribution/evidence quality with an LLM judge.",
     )
     parser.add_argument("--input_path", type=Path, default=DEFAULT_INPUT_PATH)
     parser.add_argument("--save_path", type=Path, default=DEFAULT_SAVE_PATH)
