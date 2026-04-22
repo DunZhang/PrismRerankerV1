@@ -49,19 +49,19 @@ training:
   num_epochs: 2
   learning_rate: 1.0e-5
   weight_decay: 0.01
-  warmup_steps: 1000
+  warmup_steps: 100
   lr_scheduler: "cosine"  # cosine | linear
-  grad_accum_steps: 16
+  grad_accum_steps: 8
   max_grad_norm: 1.0  # 0 表示不做梯度裁剪
   seed: 42
 
 loss:
-  gamma_point: 20.0  # point-wise MSE loss 权重
+  gamma_point: 20  # point-wise MSE loss 权重
   gamma_sft: 1.0    # SFT cross-entropy loss 权重
 
 output:
-  dir: "/mnt/data/train_output/prism_reranker_v1_4B_sft"
-  run_name: "prism_reranker_v1_4B_sft"
+  dir: "/mnt/data/train_output/Prism-Qwen3.5-Reranker-4B"
+  run_name: "Prism-Qwen3.5-Reranker-4B"
   save_interval_samples: 5000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:

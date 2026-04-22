@@ -35,34 +35,34 @@ lora:
 
 data:
   sft_data_file:  "/mnt/data/PrismRerankerV1Data/final_sft.jsonl"
-  point_wise_data_file: "/mnt/data/PrismRerankerV1Data/final_point_wise.jsonl"
-  # point_wise_data_file: null
-  sft_fraction: 0.4  # null = 不采样，两份数据并集走一轮；填 (0,1) 小数则按该比例混合 + 过采样小源
+  # point_wise_data_file: "/mnt/data/PrismRerankerV1Data/final_point_wise.jsonl"
+  point_wise_data_file: null
+  sft_fraction: null  # null = 不采样，两份数据并集走一轮；填 (0,1) 小数则按该比例混合 + 过采样小源
   train_samples: null  # null 表示全量，设为整数则取前 N 条
   num_workers: 2
   pin_memory: true
   # rerank-only trainer 专用：dev 数据路径，留空则跳过评估
   dev_path: "/mnt/data/PrismRerankerV1Data/final_dev_data.jsonl"
-  eval_batch_size: 2
+  eval_batch_size: 1
 
 training:
-  num_epochs: 2
+  num_epochs: 3
   learning_rate: 1.0e-5
   weight_decay: 0.01
-  warmup_steps: 1000
+  warmup_steps: 100
   lr_scheduler: "cosine"  # cosine | linear
-  grad_accum_steps: 16
+  grad_accum_steps: 8
   max_grad_norm: 1.0  # 0 表示不做梯度裁剪
   seed: 42
 
 loss:
-  gamma_point: 30.0  # point-wise MSE loss 权重
+  gamma_point: 20  # point-wise MSE loss 权重
   gamma_sft: 1.0    # SFT cross-entropy loss 权重
 
 output:
-  dir: "/mnt/data/train_output/prism_reranker_v1_800M_sft_0_4"
-  run_name: "prism_reranker_v1_800M_sft_0_4"
-  save_interval_samples: 10000  # 按全局 seen samples 定期保存 checkpoint
+  dir: "/mnt/data/train_output/Prism-Qwen3.5-Reranker-0.8B"
+  run_name: "Prism-Qwen3.5-Reranker-0.8B"
+  save_interval_samples: 5000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:
   wandb_project: "prism-reranker-v1"

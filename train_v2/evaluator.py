@@ -22,6 +22,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from accelerate import Accelerator
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
@@ -35,6 +36,7 @@ class DevSample:
     document: str
     label: float  # 1.0 for "yes", 0.0 for "no", NaN otherwise
     teacher_score: float  # revised_score or NaN if missing
+    target_text: str | None  # "{annotated_label}\n{contribution_evidence}" (strip)
 
 
 class DevDataset(Dataset[DevSample]):
@@ -48,21 +50,30 @@ class DevDataset(Dataset[DevSample]):
                 data = json.loads(line)
                 keywords = (data.get("keywords", "") or "").strip()
                 query = keywords if keywords else data["query"]
-                label = data.get("annotated_label")
-                if label == "yes":
+                label_raw = data.get("annotated_label")
+                if label_raw == "yes":
                     label_val = 1.0
-                elif label == "no":
+                elif label_raw == "no":
                     label_val = 0.0
                 else:
                     label_val = math.nan
                 teacher = data.get("revised_score")
                 teacher_val = float(teacher) if teacher is not None else math.nan
+
+                # SFT target text — 与训练端 data._parse_flat_sample 保持一致
+                if label_raw in ("yes", "no"):
+                    evidence = data.get("contribution_evidence", "") or ""
+                    target_text: str | None = f"{label_raw}\n{evidence}".strip()
+                else:
+                    target_text = None
+
                 self.samples.append(
                     DevSample(
                         query=query,
                         document=data["document"],
                         label=label_val,
                         teacher_score=teacher_val,
+                        target_text=target_text,
                     )
                 )
 
@@ -93,6 +104,59 @@ def make_eval_collate_fn(tokenizer: Any, max_length: int) -> Any:
         }
 
     return collate
+
+
+def make_eval_sft_collate_fn(tokenizer: Any, max_length: int) -> Any:
+    """batch_size=1 的 SFT collate，与训练端 make_train_collate_fn 的 sft 分支一致。"""
+    eos_token = tokenizer.eos_token or "<|im_end|>"
+
+    def collate(batch: list[DevSample]) -> dict[str, Any]:
+        if len(batch) != 1:
+            raise ValueError("Eval SFT collate requires batch_size=1.")
+        sample = batch[0]
+        if sample.target_text is None:
+            raise ValueError("Sample missing target_text; filter before collating.")
+
+        prompt_str = build_prompt(sample.query, sample.document)
+        full_str = prompt_str + sample.target_text + eos_token
+        full_enc = tokenizer(
+            full_str,
+            truncation=True,
+            max_length=max_length,
+            return_tensors="pt",
+        )
+        prompt_enc = tokenizer(
+            prompt_str,
+            truncation=True,
+            max_length=max_length,
+            add_special_tokens=False,
+        )
+        prompt_length = len(prompt_enc["input_ids"])
+
+        labels = full_enc["input_ids"].clone()
+        labels[:, :prompt_length] = -100
+        return {
+            "input_ids": full_enc["input_ids"],
+            "attention_mask": full_enc["attention_mask"],
+            "labels": labels,
+        }
+
+    return collate
+
+
+class _SftSubset(Dataset[DevSample]):
+    """仅保留具有 target_text 的 dev 样本，用于 SFT 交叉熵评估。"""
+
+    def __init__(self, parent: DevDataset) -> None:
+        self.samples: list[DevSample] = [
+            s for s in parent.samples if s.target_text is not None
+        ]
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int) -> DevSample:
+        return self.samples[index]
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +234,92 @@ def accuracy_at_threshold(
 
 
 # ---------------------------------------------------------------------------
+# SFT cross-entropy eval loss
+# ---------------------------------------------------------------------------
+@torch.no_grad()
+def _compute_sft_eval_loss(
+    *,
+    dataset: DevDataset,
+    transformer: Any,
+    lm_head: torch.nn.Module,
+    tokenizer: Any,
+    accelerator: Accelerator,
+    max_length: int,
+) -> float:
+    """在 dev 集上计算 SFT 交叉熵损失。
+
+    target text 按训练端相同方式拼接：``f"{annotated_label}\\n{contribution_evidence}".strip()``；
+    loss 只在 target + eos 位置计算（prompt 部分的 labels 置为 -100）。
+    返回 token 级加权平均 loss。
+    """
+    subset = _SftSubset(dataset)
+    if len(subset) == 0:
+        return math.nan
+
+    collate = make_eval_sft_collate_fn(tokenizer, max_length)
+    loader = DataLoader(
+        subset,
+        batch_size=1,
+        shuffle=False,
+        collate_fn=collate,
+        num_workers=0,
+        pin_memory=torch.cuda.is_available(),
+    )
+    loader = accelerator.prepare_data_loader(loader, device_placement=True)
+
+    loss_chunks: list[torch.Tensor] = []
+    valid_chunks: list[torch.Tensor] = []
+
+    progress = tqdm(
+        loader,
+        desc="Eval-SFT",
+        disable=not accelerator.is_main_process,
+        total=len(loader),
+    )
+    with accelerator.autocast():
+        for batch in progress:
+            input_ids = batch["input_ids"]
+            attention_mask = batch["attention_mask"]
+            labels = batch["labels"]
+
+            outputs = transformer(
+                input_ids=input_ids, attention_mask=attention_mask
+            )
+            hidden = outputs[0]
+
+            shift_hidden = hidden[:, :-1, :]
+            shift_labels = labels[:, 1:].contiguous()
+            token_mask = shift_labels.view(-1) != -100
+
+            if int(token_mask.sum().item()) == 0:
+                loss_val = torch.zeros(1, device=hidden.device, dtype=torch.float32)
+                valid_val = torch.zeros(1, device=hidden.device, dtype=torch.float32)
+            else:
+                valid_hidden = shift_hidden.reshape(-1, shift_hidden.size(-1))[token_mask]
+                valid_labels = shift_labels.view(-1)[token_mask]
+                logits = lm_head(valid_hidden)
+                loss_mean = F.cross_entropy(
+                    logits.float(), valid_labels, reduction="mean"
+                )
+                loss_val = loss_mean.detach().unsqueeze(0).to(torch.float32)
+                valid_val = torch.ones(1, device=hidden.device, dtype=torch.float32)
+
+            loss_chunks.append(
+                accelerator.gather_for_metrics(loss_val).detach().cpu()
+            )
+            valid_chunks.append(
+                accelerator.gather_for_metrics(valid_val).detach().cpu()
+            )
+
+    losses = torch.cat(loss_chunks)
+    valid_flags = torch.cat(valid_chunks)
+    denom = float(valid_flags.sum().item())
+    if denom <= 0:
+        return math.nan
+    return float((losses * valid_flags).sum().item() / denom)
+
+
+# ---------------------------------------------------------------------------
 # Evaluation loop
 # ---------------------------------------------------------------------------
 @torch.no_grad()
@@ -237,9 +387,6 @@ def run_evaluation(
             label_chunks.append(gathered_label.detach().cpu())
             teacher_chunks.append(gathered_teacher.detach().cpu())
 
-    if was_training:
-        model.train()
-
     scores = torch.cat(score_chunks).numpy().astype(np.float64)
     labels = torch.cat(label_chunks).numpy().astype(np.float64)
     teacher = torch.cat(teacher_chunks).numpy().astype(np.float64)
@@ -247,10 +394,23 @@ def run_evaluation(
     n_valid_label = int((~np.isnan(labels)).sum())
     n_valid_teacher = int((~np.isnan(teacher)).sum())
 
+    eval_loss = _compute_sft_eval_loss(
+        dataset=dataset,
+        transformer=transformer,
+        lm_head=lm_head,
+        tokenizer=tokenizer,
+        accelerator=accelerator,
+        max_length=max_length,
+    )
+
+    if was_training:
+        model.train()
+
     return {
         "n_dev": float(len(scores)),
         "n_valid_label": float(n_valid_label),
         "n_valid_teacher": float(n_valid_teacher),
+        "eval_loss": eval_loss,
         "pearson_teacher": pearson_corr(scores, teacher),
         "spearman_teacher": spearman_corr(scores, teacher),
         "pearson_label": pearson_corr(scores, labels),

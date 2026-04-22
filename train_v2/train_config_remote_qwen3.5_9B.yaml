@@ -1,6 +1,6 @@
 model:
-  path: "/mnt/data/public_models/Qwen3.5-2B"
-  max_seq_length: 8192
+  path: "/mnt/data/public_models/Qwen3.5-9B"
+  max_seq_length: 10240
   dtype: "bfloat16"  # bfloat16 | float16 | float32 | null
   load_in_4bit: false
   # Qwen3.5 是混合注意力：6 层 full attention + 18 层 linear attention。
@@ -8,13 +8,13 @@ model:
   # 想让 linear attention 层也走快速 kernel，需在环境里安装：
   #   uv pip install causal-conv1d flash-linear-attention --no-build-isolation
   # 没装也能跑，只是 18 层会 fallback 到 torch 实现（会有 warning，但训练正常）。
-  attn_implementation: "sdpa"
+  attn_implementation: "flash_attention_2"
   gradient_checkpointing: true
 
 lora:
   enabled: true  # false 时走全参微调
-  r: 64
-  alpha: 128
+  r: 32
+  alpha: 64
   dropout: 0.0
   # 覆盖 full attention（6/24）+ linear attention（18/24）+ 全部 MLP（24/24）。
   # 不加 conv1d（depth-wise 卷积，LoRA 效果一般且占比小）。
@@ -34,32 +34,35 @@ lora:
   use_rslora: false
 
 data:
-  sft_data_file: "/mnt/data/PrismRerankerV1Data/final_sft.jsonl"
-  # point_wise_data_file: "/mnt/g/PrismRerankerV1Data/final_point_wise.jsonl"
+  sft_data_file:  "/mnt/data/PrismRerankerV1Data/final_sft.jsonl"
+  #point_wise_data_file: "/mnt/data/PrismRerankerV1Data/final_point_wise.jsonl"
   point_wise_data_file: null
   sft_fraction: null  # null = 不采样，两份数据并集走一轮；填 (0,1) 小数则按该比例混合 + 过采样小源
   train_samples: null  # null 表示全量，设为整数则取前 N 条
   num_workers: 2
   pin_memory: true
+  # rerank-only trainer 专用：dev 数据路径，留空则跳过评估
+  dev_path: "/mnt/data/PrismRerankerV1Data/final_dev_data.jsonl"
+  eval_batch_size: 1
 
 training:
   num_epochs: 2
   learning_rate: 1.0e-5
   weight_decay: 0.01
-  warmup_steps: 1000
+  warmup_steps: 100
   lr_scheduler: "cosine"  # cosine | linear
-  grad_accum_steps: 16
+  grad_accum_steps: 8
   max_grad_norm: 1.0  # 0 表示不做梯度裁剪
   seed: 42
 
 loss:
-  gamma_point: 10.0  # point-wise MSE loss 权重
+  gamma_point: 20  # point-wise MSE loss 权重
   gamma_sft: 1.0    # SFT cross-entropy loss 权重
 
 output:
-  dir: "/mnt/data/train_output/qwen3_5_2B_v2"
-  run_name: "qwen3_5_2B_v2"
-  save_interval_samples: 1000  # 按全局 seen samples 定期保存 checkpoint
+  dir: "/mnt/data/train_output/Prism-Qwen3.5-Reranker-9B"
+  run_name: "Prism-Qwen3.5-Reranker-9B"
+  save_interval_samples: 5000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:
   wandb_project: "prism-reranker-v1"
