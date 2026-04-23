@@ -86,15 +86,6 @@ SFT loss：对 prompt 之后的 target 文本（`yes/no` + `<contribution>` + `<
 ## 当前训练效果
 我在Qwen3.5 4B模型上线进行了2W条数据的训练，经过测试发现模型的排序能力和输出文本能力均基本可看。
 备注：
-排序能力：即模型输出score的能力如何，这个可以用经典NDCG评估
+排序能力：即模型输出score的能力如何，这个可以用经典NDCG评估: /mnt/d/codes/PrismRerankerV1/evaluate_relevance_on_jina_bench
 
-文本能力：即模型输出contribution和evidence的能力如何，这个即可用Rouge score，也可用LLM as Judge来进行评估打分
-
-
-## 我的问题
-
-我的问题很简单，我现在在考虑做2件事：
-1）能否加入think？现在有很多的自带think能力的模型
-2）是否需要加入RL来强化效果
-
-我希望加入RL和think, 请你告诉我是否有必要，如果有必要要如何做，训练流程是啥样的？
+文本能力：即模型输出contribution和evidence的能力如何，LLM as Judge: /mnt/d/codes/PrismRerankerV1/evaluate_relevance_contribution_evidence

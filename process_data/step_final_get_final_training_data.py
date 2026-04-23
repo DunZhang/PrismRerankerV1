@@ -66,7 +66,7 @@ def main(qp_contribution_evidence_path, rerank_distill_path):
 
     q_list = list(set([json.loads(item)["query"] for item in sft_data]))
     random.shuffle(q_list)
-    train_qs, dev_qs = set(q_list[350:]), set(q_list[:350])
+    train_qs, dev_qs = set(q_list[250:]), set(q_list[:250])
     dev_data = [
         item
         for item in sft_data
@@ -119,8 +119,8 @@ if __name__ == "__main__":
     write_data = rerank1 + rerank2
     # write_data = rerank1
     random.shuffle(write_data)
-    with open(join(save_dir, "final_point_wise.jsonl"), "w", encoding="utf8") as fw:
-        fw.writelines(write_data)
+    # with open(join(save_dir, "final_point_wise.jsonl"), "w", encoding="utf8") as fw:
+    #     fw.writelines(write_data)
 
     # dev data
     write_data = dev1 + dev2

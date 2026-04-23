@@ -1,13 +1,8 @@
 model:
-  path: "/root/Qwen3.5-9B"
+  path: "/mnt/data/public_models/Qwen3-Reranker-4B"
   max_seq_length: 10240
   dtype: "bfloat16"  # bfloat16 | float16 | float32 | null
   load_in_4bit: false
-  # Qwen3.5 是混合注意力：6 层 full attention + 18 层 linear attention。
-  # 本参数只影响 full attention 层。
-  # 想让 linear attention 层也走快速 kernel，需在环境里安装：
-  #   uv pip install causal-conv1d flash-linear-attention --no-build-isolation
-  # 没装也能跑，只是 18 层会 fallback 到 torch 实现（会有 warning，但训练正常）。
   attn_implementation: "sdpa"
   gradient_checkpointing: true
 
@@ -34,7 +29,7 @@ lora:
   use_rslora: false
 
 data:
-  sft_data_file:  "/root/final_sft.jsonl"
+  sft_data_file:  "/mnt/data/PrismRerankerV1Data/final_sft.jsonl"
   #point_wise_data_file: "/mnt/data/PrismRerankerV1Data/final_point_wise.jsonl"
   point_wise_data_file: null
   sft_fraction: null  # null = 不采样，两份数据并集走一轮；填 (0,1) 小数则按该比例混合 + 过采样小源
@@ -42,7 +37,7 @@ data:
   num_workers: 2
   pin_memory: true
   # rerank-only trainer 专用：dev 数据路径，留空则跳过评估
-  dev_path: "/root/final_dev_data.jsonl"
+  dev_path: "/mnt/data/PrismRerankerV1Data/final_dev_data.jsonl"
   eval_batch_size: 1
 
 training:
@@ -51,7 +46,7 @@ training:
   weight_decay: 0.01
   warmup_steps: 100
   lr_scheduler: "cosine"  # cosine | linear
-  grad_accum_steps: 48
+  grad_accum_steps: 8
   max_grad_norm: 1.0  # 0 表示不做梯度裁剪
   seed: 42
 
@@ -60,8 +55,8 @@ loss:
   gamma_sft: 1.0    # SFT cross-entropy loss 权重
 
 output:
-  dir: "/root/Prism-Qwen3.5-Reranker-9B"
-  run_name: "Prism-Qwen3.5-Reranker-9B"
+  dir: "/mnt/data/train_output/Prism-Qwen3-Reranker-4B"
+  run_name: "Prism-Qwen3-Reranker-4B"
   save_interval_samples: 5000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:
