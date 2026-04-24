@@ -9,7 +9,7 @@ contribution 是指该文档具体解决了 query 的什么问题。不同文档
 - 对比了多种选项的优缺点，辅助决策
 - 补充了注意事项、风险或边界条件
 
-请用一句话概括该文档帮 query 解决了什么，涵盖所有核心贡献点，但每个点只需点到即可，不要展开。
+请用一两句话简洁概括该文档帮 query 解决了什么，涵盖所有核心贡献点，但每个点只需点到即可，不要展开。
 </contribution_guide>
 
 <evidence_guide>
@@ -20,8 +20,8 @@ evidence 将完全替代原文，下游模型只能看到 evidence、永远无�
    - 禁止任何推测和推断，即使看起来"合理"也不行。原文没说的，就不写。
    - 禁止补充原文未提及的因果关系、结论或解释。
    - 允许的改写仅限于：消解指代、合并重复表述、调整句序以提高可读性。
-2. 自包含：文档中所有对回答 query 有用的信息必须保留在 evidence 中，不可遗漏。消解指代、补全省略、保留关键数据和限定条件，确保仅凭 evidence 就能完整回答 query。
-3. 精简：去除与 query 无直接关联的背景铺垫和冗余内容，只保留对回答 query 有实际贡献的信息。
+2. 自包含（优先于精简）：文档中所有对回答 query 有用的信息必须保留在 evidence 中，不可遗漏。消解指代、补全省略、保留关键数据和限定条件，确保仅凭 evidence 就能完整回答 query。当自包含与精简冲突时，宁可多保留，不可遗漏。
+3. 精简：在满足自包含的前提下，去除与 query 无直接关联的背景铺垫和冗余内容，只保留对回答 query 有实际贡献的信息。
 4. 原文表达强制保留：无论最终输出语言为何，以下内容必须以原文形式出现，不得翻译、音译或改写：
    - 专有名词：人名、机构名、地名、产品名、品牌名、项目/论文/书名
    - 术语、缩写、代号、型号
@@ -45,7 +45,7 @@ evidence 将完全替代原文，下游模型只能看到 evidence、永远无�
 </document>
 对应的输出：
 <contribution>用对照实验数据证明了间歇性禁食比传统热量限制减重更快</contribution>
-<evidence>一项12周随机对照试验（200人）显示，间歇性禁食组平均减重6.8kg，显著优于传统热量限制组的4.1kg（p&lt;0.01），其机制可能是延长了脂肪氧化窗口期。</evidence>
+<evidence>一项12周随机对照试验（n=200）显示，间歇性禁食组平均减重6.8kg，显著优于传统热量限制组的4.1kg（p&lt;0.01）。研究者认为间歇性禁食通过延长脂肪氧化窗口期来加速减脂。</evidence>
 </example>
 
 <example>
@@ -56,6 +56,21 @@ evidence 将完全替代原文，下游模型只能看到 evidence、永远无�
 对应的输出：
 <contribution>系统列举了热失控的三类主要诱因及其机制</contribution>
 <evidence>锂电池热失控的主要原因包括三类：一是内短路，常由制造缺陷或锂枝晶穿刺隔膜引起；二是外部过充，导致正极释氧并与电解液剧烈反应产生大量热；三是高温环境下电解液自发分解，触发链式放热反应。</evidence>
+</example>
+
+<example>
+<title>常见错误示范</title>
+<query>Python 的 GIL 对多线程性能有什么影响</query>
+<document>
+Python 的 GIL（Global Interpreter Lock）确保同一时刻只有一个线程执行字节码。因此 CPU 密集型任务使用多线程不会获得加速，反而可能因线程切换开销而变慢。I/O 密集型任务不受此限制，因为线程在等待 I/O 时会释放 GIL。
+</document>
+错误输出：
+<contribution>解释了 GIL 的影响</contribution>
+<evidence>GIL 导致多线程无法并行执行，因此在实际项目中应优先使用 multiprocessing 模块来实现真正的并行计算，从而充分利用多核 CPU。</evidence>
+错误原因：contribution 过于笼统，没有体现具体贡献维度；evidence 添加了原文中未提及的"multiprocessing 模块"和"多核 CPU"建议，违反忠实原则。
+正确输出：
+<contribution>区分了 GIL 对 CPU 密集型与 I/O 密集型多线程任务的不同影响</contribution>
+<evidence>Python 的 GIL（Global Interpreter Lock）确保同一时刻只有一个线程执行字节码。CPU 密集型任务使用多线程不会获得加速，反而可能因线程切换开销而变慢；I/O 密集型任务不受此限制，因为线程在等待 I/O 时会释放 GIL。</evidence>
 </example>
 </examples>
 

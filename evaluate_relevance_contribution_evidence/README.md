@@ -30,7 +30,7 @@ JSONL，每行至少包含：
 |---|---|---|---|---|
 | `entity_fidelity` | 0.0–1.0 | `annotated == pred == yes` | `deepseek-chat` 从 evidence 抽专名/术语/代号/URL，正则补抽数字/百分比/日期/时间；合并去重后逐个检查是否在 `document` 中逐字出现；score = present/total | [`compute_entity_fidelity`](entity_fidelity.py) 在 [entity_fidelity.py](entity_fidelity.py) |
 
-### 3) LLM 裁判（默认阿里云百炼 deepseek-v3.2，可切 deepseek-reasoner、kimi-k2.5）
+### 3) LLM 裁判（默认 deepseek-reasoner，可切阿里云百炼 deepseek-v3.2、kimi-k2.5）
 
 以下 6 个维度由**一次裁判调用同时产出**，各自独立打分、**不做综合不加权**。适用样本：`annotated == pred == yes`。裁判 prompt：[templates/judge_contribution_evidence.j2](templates/judge_contribution_evidence.j2)。解析逻辑：[`_parse_judge_output`](evaluate.py) 在 [evaluate.py](evaluate.py)。
 
@@ -41,7 +41,7 @@ JSONL，每行至少包含：
 | `evidence_faithfulness` | 1–5 | ⭐ 最严重：有没有幻觉，数字/专名是否原样保留 |
 | `evidence_self_contained` | 1–5 | 仅凭 evidence 能否完整回答 query |
 | `evidence_concision` | 1–5 | 是否去掉无关背景，真的做了提炼 |
-| `language_consistency` | **5 或 1** | 叙述性文字语种是否匹配 document（单语同步 / 多语英文），二值 |
+| `language_consistency` | **5 或 1** | 叙述性文字语种是否符合规则（单语种同步 / 繁简混排→简体 / 多语种→跟 query 语种或英文），二值 |
 
 ### 执行顺序
 
@@ -51,8 +51,8 @@ JSONL，每行至少包含：
 
 `DEEPSEEK_API_KEY` **始终必填**（实体保真检查固定走 `deepseek-chat` 抽实体，无论裁判用哪家）。此外按裁判 provider 再加一把 key：
 
-- `--provider bailian`（默认）：`BAILIAN_API_KEY`（阿里云百炼 DashScope 的 key）
-- `--provider deepseek`：复用上面的 `DEEPSEEK_API_KEY`，无需额外 key
+- `--provider deepseek`（默认）：复用上面的 `DEEPSEEK_API_KEY`，无需额外 key
+- `--provider bailian`：`BAILIAN_API_KEY`（阿里云百炼 DashScope 的 key）
 - `--provider kimi`：`MOONSHOT_API_KEY`
 
 所有 key 写入项目根 `.env`，`shared.env` 自动加载。
@@ -60,13 +60,13 @@ JSONL，每行至少包含：
 ## 用法
 
 ```bash
-# 小样本 dry run（10 行）
+# 小样本 dry run（10 行，默认 provider=deepseek，模型 deepseek-reasoner）
 uv run python -m evaluate_relevance_contribution_evidence.evaluate \
     --input_path /path/to/pred_res.jsonl \
     --save_path  /tmp/eval_sample.jsonl \
     --max_rows 10 -v
 
-# 全量
+# 全量（默认 deepseek-reasoner）
 uv run python -m evaluate_relevance_contribution_evidence.evaluate \
     --input_path /path/to/pred_res.jsonl \
     --save_path  /path/to/eval.jsonl
@@ -76,12 +76,12 @@ uv run python -m evaluate_relevance_contribution_evidence.evaluate \
     --provider kimi --judge_model kimi-k2.5 \
     --input_path /path/to/pred_res.jsonl --save_path /path/to/eval.jsonl
 
-# 阿里云百炼 deepseek-v3.2（不开思考，等价 deepseek-chat）
+# 阿里云百炼 deepseek-v3.2（不开思考）
 uv run python -m evaluate_relevance_contribution_evidence.evaluate \
     --provider bailian \
     --input_path /path/to/pred_res.jsonl --save_path /path/to/eval.jsonl
 
-# 阿里云百炼 deepseek-v3.2（开思考，等价 deepseek-r1，走流式聚合 reasoning_content）
+# 阿里云百炼 deepseek-v3.2（开思考，走流式聚合 reasoning_content）
 uv run python -m evaluate_relevance_contribution_evidence.evaluate \
     --provider bailian --enable_thinking \
     --input_path /path/to/pred_res.jsonl --save_path /path/to/eval.jsonl
@@ -91,7 +91,19 @@ uv run python -m evaluate_relevance_contribution_evidence.summarize \
     --input /path/to/eval.jsonl
 ```
 
-CLI 参数：`--input_path` / `--save_path` / `--provider {deepseek,kimi,bailian}`（默认 `bailian`）/ `--judge_model`（默认取 provider 对应的默认模型：bailian→`deepseek-v3.2`、deepseek→`deepseek-reasoner`、kimi→`kimi-k2.5`）/ `--batch_size`（默认 64）/ `--max_workers`（默认 8）/ `--max_rows` / `--env_file` / `--enable_thinking`（仅 `--provider bailian` 生效）/ `-v`。
+### evaluate_annotated（评估标注数据质量）
+
+与 `evaluate` 的区别：输入是 step9 产出的标注数据（`contribution_evidence` 字段，无前导 yes/no），而非模型预测（`pred_text` 字段）。仅对 `annotated_label == "yes"` 的行做裁判评分，`no` 行直接透传。无 `label_match` / `format_score` 指标。
+
+```bash
+uv run python -m evaluate_relevance_contribution_evidence.evaluate_annotated \
+    --input_path /path/to/step9_output.jsonl \
+    --save_path  /path/to/step9_eval.jsonl
+```
+
+CLI 参数与 `evaluate` 一致：`--provider` / `--judge_model` / `--batch_size` / `--max_workers` / `--max_rows` / `--env_file` / `--enable_thinking` / `-v`。
+
+CLI 参数：`--input_path` / `--save_path` / `--provider {deepseek,kimi,bailian}`（默认 `deepseek`）/ `--judge_model`（默认取 provider 对应的默认模型：deepseek→`deepseek-reasoner`、bailian→`deepseek-v3.2`、kimi→`kimi-k2.5`）/ `--batch_size`（默认 64）/ `--max_workers`（默认 64）/ `--max_rows` / `--env_file` / `--enable_thinking`（仅 `--provider bailian` 生效）/ `-v`。
 
 ## 输出
 

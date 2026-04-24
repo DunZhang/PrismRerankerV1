@@ -55,7 +55,7 @@ TEMPLATE_PATH = (
     Path(__file__).resolve().parent / "templates" / "judge_contribution_evidence.j2"
 )
 MAX_RETRIES = 2
-MAX_COMPLETION_TOKENS = 4096
+MAX_COMPLETION_TOKENS = 8192
 
 # Provider-specific config: default model, base_url, env var for api key.
 PROVIDER_CONFIGS: dict[str, dict[str, str]] = {

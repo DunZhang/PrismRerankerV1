@@ -62,7 +62,7 @@ loss:
 output:
   dir: "/mnt/data/train_output/Prism-Qwen3.5-Reranker-2B"
   run_name: "Prism-Qwen3.5-Reranker-2B"
-  save_interval_samples: 5000  # 按全局 seen samples 定期保存 checkpoint
+  save_interval_samples: 2000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:
   wandb_project: "prism-reranker-v1"

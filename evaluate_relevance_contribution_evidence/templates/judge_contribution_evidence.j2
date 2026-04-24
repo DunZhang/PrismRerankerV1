@@ -58,7 +58,8 @@ contribution 是否真实反映文档对 query 的实际贡献。
 ### 6. language_consistency（语言一致性）
 **只给 5 或 1，没有中间分。** 判断 contribution 和 evidence 的**叙述性文字**语种是否符合下面规则：
 - document 为单一语种 → contribution 和 evidence 的叙述性文字必须与 document 同语种。
-- document 为多语种混合 → contribution 和 evidence 的叙述性文字应为英文。
+- document 为单一中文语种但繁简混排（同时含有大量简体和繁体字） → 输出语言为简体中文。
+- document 为多语种混合 → 如果 query 的语种是 document 所包含的语种之一，则 contribution 和 evidence 的叙述性文字应与 query 同语种；否则应为英文。
 - **不计入本维度**：专名（人名 / 机构 / 地名 / 产品）、术语、缩写、型号、代码、URL、数字、百分比、日期、时间、货币金额——这些沿用 document 原始写法即可（由实体保真检查单独负责）。本维度只评判叙述性文字的语种。
 - 打分：完全符合 → **5**；不符合 → **1**。
 
@@ -82,7 +83,7 @@ contribution 是否真实反映文档对 query 的实际贡献。
 | evidence 含未消解指代（"该研究""他们""此方法"等） | evidence_self_contained | ≤ 3 |
 | evidence 含 query 无关的背景 / 广告 / 导航 / 作者介绍 | evidence_concision | ≤ 2 |
 | evidence 大段照抄 document，未做任何提炼改写 | evidence_concision | ≤ 3 |
-| 叙述性文字语种不符合 document 规则 | language_consistency | = 1 |
+| 叙述性文字语种不符合上述语言规则（单语种 / 繁简混排 / 多语种混合） | language_consistency | = 1 |
 
 ---
 
