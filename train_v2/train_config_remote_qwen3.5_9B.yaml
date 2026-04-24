@@ -46,12 +46,12 @@ data:
   eval_batch_size: 1
 
 training:
-  num_epochs: 2
+  num_epochs: 1
   learning_rate: 1.0e-5
   weight_decay: 0.01
   warmup_steps: 100
   lr_scheduler: "cosine"  # cosine | linear
-  grad_accum_steps: 48
+  grad_accum_steps: 12
   max_grad_norm: 1.0  # 0 表示不做梯度裁剪
   seed: 42
 

@@ -42,10 +42,9 @@ TEMPLATE_PATH = (
 )
 
 MODEL = "deepseek-v4-pro"
-REASONING_EFFORT = "high" # high或max
 
-BATCH_SIZE = 256
-MAX_WORKERS = 128
+BATCH_SIZE = 128
+MAX_WORKERS = 32
 MAX_ROWS: int | None = None
 ENV_FILE: Path | None = None
 VERBOSE = False
@@ -401,8 +400,7 @@ def _call_deepseek(client: Any, prompt: str, temperature: float = 0.0) -> str | 
                 model=MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=temperature,
-                reasoning_effort=REASONING_EFFORT,
-                extra_body={"thinking": {"type": "enabled"}},
+                extra_body={"thinking": {"type": "disabled"}},
             )
             content = response.choices[0].message.content
             if content and content.strip():
@@ -600,7 +598,7 @@ def _classify_and_generate(
     prompt = template.render(
         query=row["query"], document=row["document"], lang=output_lang
     )
-    output = _call_deepseek(client, prompt, temperature=0.0)
+    output = _call_deepseek(client, prompt, temperature=0.4)
 
     out_row = dict(row)
     out_row["contribution_evidence"] = output

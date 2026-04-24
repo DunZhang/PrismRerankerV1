@@ -41,8 +41,10 @@ TEMPLATE_PATH = (
     / "relevance_extract.j2"
 )
 
-BATCH_SIZE = 256
-MAX_WORKERS = 128
+MODEL = "deepseek-v4-pro"
+
+BATCH_SIZE = 128
+MAX_WORKERS = 64
 MAX_ROWS: int | None = None
 ENV_FILE: Path | None = None
 VERBOSE = False
@@ -395,9 +397,10 @@ def _call_deepseek(client: Any, prompt: str, temperature: float = 0.0) -> str | 
     for attempt in range(1 + MAX_RETRIES):
         try:
             response = client.chat.completions.create(
-                model="deepseek-chat",
+                model=MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=temperature,
+                extra_body={"thinking": {"type": "disabled"}},
             )
             content = response.choices[0].message.content
             if content and content.strip():
@@ -595,7 +598,7 @@ def _classify_and_generate(
     prompt = template.render(
         query=row["query"], document=row["document"], lang=output_lang
     )
-    output = _call_deepseek(client, prompt, temperature=0.0)
+    output = _call_deepseek(client, prompt, temperature=0.4)
 
     out_row = dict(row)
     out_row["contribution_evidence"] = output
@@ -646,7 +649,7 @@ def process(client: Any, template: jinja2.Template) -> None:
     log.info("=" * 60)
     log.info("Input:            %s", input_path)
     log.info("Output:           %s", save_path)
-    log.info("Model:            deepseek-chat")
+    log.info("Model:            %s", MODEL)
     log.info("Batch size:       %d", batch_size)
     log.info("Workers:          %d", max_workers)
     log.info("Total rows:       %d", len(all_rows))
