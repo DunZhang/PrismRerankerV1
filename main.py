@@ -1,59 +1,87 @@
-import json
-import random
-from os.path import join
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+MODEL_PATH = "/mnt/g/prism_released_models/Prism-Qwen3.5-Reranker-4B/"
+
+SYSTEM_PROMPT = (
+    "Judge whether the Document meets the requirements based on "
+    "the Query and the Instruct provided. "
+)
+
+INSTRUCTION = (
+    'Judge if the document is relevant to the query. Reply "yes" or "no".\n'
+    'On "yes", also emit:\n'
+    "<contribution>One sentence covering every core point the document "
+    "contributes to the query, without elaboration.</contribution>\n"
+    "<evidence>Self-contained rewrite of the query-relevant content. Rules:\n"
+    "- Faithful: rephrase only; add or infer nothing.\n"
+    "- Self-contained: evidence alone must fully answer the query.\n"
+    "- Concise: drop query-irrelevant background.\n"
+    "- Verbatim (no translation): proper nouns, terms, abbreviations, "
+    "numbers, dates, code, URLs.\n"
+    "- Output language: multilingual doc -> query's language; else doc's language."
+    "</evidence>"
+)
+
+PROMPT_TEMPLATE = (
+    "<|im_start|>system\n{system}<|im_end|>\n"
+    "<|im_start|>user\n"
+    "<Instruct>: {instruction}\n"
+    "<Query>: {query}\n"
+    "<Document>: {doc}<|im_end|>\n"
+    "<|im_start|>assistant\n<think>\n\n</think>\n\n"
+)
 
 
-# 1.7188 是 voyage2.5
-# 1.609是2个voyage
-# final_score = (0.2 * voyage_rerank_2_score + 0.5 * voyage_rerank_2_5_score + 0.3 * qwen3_reranker_4b_score) ** 2.2846
-
-# def _add_score(item):
-#     item["revised_score"] = (item.get("voyage-rerank-2.5_score") * 0.45
-#                              + item.get("voyage-rerank-2_score") * 0.1
-#                              + item.get("Qwen3-Reranker-4B_score") * 0.45
-#                              ) ** 2.8835
-#
-#     return item
+def build_prompt(query: str, doc: str) -> str:
+    return PROMPT_TEMPLATE.format(
+        system=SYSTEM_PROMPT, instruction=INSTRUCTION, query=query, doc=doc
+    )
 
 
-# def _add_score(item):
-#     try:
-#         item["revised_score"] = item["voyage-rerank-2.5_score"] ** 1.45
-#         return item
-#     except:
-#         return None
+tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_PATH,
+    torch_dtype=torch.bfloat16,
+    device_map="cuda",
+    attn_implementation="sdpa",
+).eval()
 
-def _add_score(item):
-    try:
-        item["revised_score"] = item["Qwen3-Reranker-4B_score"] ** 0.6425
-        return item
-    except:
-        return None
+yes_id = tokenizer.encode("yes", add_special_tokens=False)[0]
+no_id = tokenizer.encode("no", add_special_tokens=False)[0]
 
 
-def main(read_path):
-    sft_data = []
-    with open(read_path, "r", encoding="utf8") as fr:
-        for line in fr:
-            item = json.loads(line)
-            item = _add_score(item)
-            if not item:
-                continue
-            if (item["revised_score"] > 0.5 and item["annotated_label"] == "yes") or (
-                    item["revised_score"] <= 0.5 and item["annotated_label"] == "no"):
-                item["loss_type"] = "point-wise;sft"
-            else:
-                item["loss_type"] = "sft"
-            sft_data.append(json.dumps(item, ensure_ascii=False) + "\n")
-    return sft_data
+@torch.no_grad()
+def rerank(query: str, doc: str, max_new_tokens: int = 512):
+    prompt = build_prompt(query, doc)
+    input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(model.device)
+
+    out = model.generate(
+        input_ids=input_ids,
+        max_new_tokens=max_new_tokens,
+        do_sample=False,
+        return_dict_in_generate=True,
+        output_scores=True,
+        pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+    )
+
+    # Relevance score = softmax over {yes, no} at the first generated token.
+    first_logprobs = torch.log_softmax(out.scores[0][0].float(), dim=-1)
+    yes_p = first_logprobs[yes_id].exp()
+    no_p = first_logprobs[no_id].exp()
+    score = (yes_p / (yes_p + no_p)).item()
+
+    # Decoded text holds yes/no plus <contribution>...</contribution><evidence>...</evidence>
+    gen_ids = out.sequences[0, input_ids.shape[1]:]
+    text = tokenizer.decode(gen_ids, skip_special_tokens=True)
+    return {"score": score, "text": text}
 
 
-if __name__ == "__main__":
-    # 这个数据只关注query，document，revised_score，annotated_label，contribution_evidence
-
-    read_path = "G:/PrismRerankerV1Data/final_sft.jsonl"
-    save_path = "G:/PrismRerankerV1Data/final_sft_exp.jsonl"
-
-    write_data = main(read_path)
-    with open(save_path, "w", encoding="utf8") as fw:
-        fw.writelines(write_data)
+example = rerank(
+    query="What is the boiling point of water at sea level?",
+    doc=(
+        "Water boils at 100 C (212 F) at standard atmospheric pressure (1 atm), "
+        "which corresponds to sea-level conditions."
+    ),
+)
+print(example)
