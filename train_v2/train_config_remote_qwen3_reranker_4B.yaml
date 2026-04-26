@@ -1,5 +1,5 @@
 model:
-  path: "/mnt/data/public_models/Qwen3-Reranker-4B"
+  path: "/mnt/data/public_models/Qwen3-Reranker-Merged-4B"
   max_seq_length: 10240
   dtype: "bfloat16"  # bfloat16 | float16 | float32 | null
   load_in_4bit: false
@@ -29,7 +29,7 @@ lora:
   use_rslora: false
 
 data:
-  sft_data_file:  "/mnt/data/PrismRerankerV1Data/final_sft.jsonl"
+  sft_data_file:  "/mnt/data/PrismRerankerV1Data/final_sft_exp.jsonl"
   #point_wise_data_file: "/mnt/data/PrismRerankerV1Data/final_point_wise.jsonl"
   point_wise_data_file: null
   sft_fraction: null  # null = 不采样，两份数据并集走一轮；填 (0,1) 小数则按该比例混合 + 过采样小源
@@ -37,7 +37,7 @@ data:
   num_workers: 2
   pin_memory: true
   # rerank-only trainer 专用：dev 数据路径，留空则跳过评估
-  dev_path: "/mnt/data/PrismRerankerV1Data/final_dev_data.jsonl"
+  dev_path: "/mnt/data/PrismRerankerV1Data/final_dev_data_exp.jsonl"
   eval_batch_size: 1
 
 training:
@@ -46,7 +46,7 @@ training:
   weight_decay: 0.01
   warmup_steps: 100
   lr_scheduler: "cosine"  # cosine | linear
-  grad_accum_steps: 8
+  grad_accum_steps: 6
   max_grad_norm: 1.0  # 0 表示不做梯度裁剪
   seed: 42
 
@@ -55,9 +55,9 @@ loss:
   gamma_sft: 1.0    # SFT cross-entropy loss 权重
 
 output:
-  dir: "/mnt/data/train_output/Prism-Qwen3-Reranker-4B"
-  run_name: "Prism-Qwen3-Reranker-4B"
-  save_interval_samples: 2000  # 按全局 seen samples 定期保存 checkpoint
+  dir: "/mnt/data/train_output/Prism-Qwen3-Reranker-Merged-4B-exp"
+  run_name: "Prism-Qwen3-Reranker-Merged-4B-exp"
+  save_interval_samples: 4000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:
   wandb_project: "prism-reranker-v1"

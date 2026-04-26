@@ -1,26 +1,21 @@
-"""Evaluate Qwen reranker predictions with an LLM judge.
+"""Evaluate Qwen reranker predictions with deepseek-v4-pro as the judge.
 
 Two tasks:
 1. Extract yes/no from ``pred_text`` and compare to ``annotated_label``.
-2. For rows where both labels are ``yes``, ask a reasoning model
-   (Kimi k2.5 or DeepSeek deepseek-reasoner) to score the model-generated
-   contribution/evidence against the original ``relevance_extract.j2`` rules.
+2. For rows where both labels are ``yes``, ask deepseek-v4-pro to score the
+   model-generated contribution/evidence against the rules in
+   ``judge_contribution_evidence.j2``.
 
-Output: a new JSONL file with the original fields plus evaluation fields.
+Output:
+- A JSONL file with the original fields plus evaluation fields.
+- An xlsx summary auto-generated next to the JSONL after evaluation finishes.
 
-Usage:
-    # Kimi k2.5 (default)
-    uv run python -m evaluate_relevance_contribution_evidence.evaluate \\
-        --input_path /mnt/g/PrismRerankerV1Data/Qwen3.5-2B-samples-4000-result.jsonl \\
-        --save_path  /mnt/g/PrismRerankerV1Data/Qwen3.5-2B-samples-4000-result.eval.jsonl
-
-    # DeepSeek deepseek-reasoner
-    uv run python -m evaluate_relevance_contribution_evidence.evaluate --provider deepseek ...
+Configuration is via module-level globals below — edit them in this file
+instead of passing CLI args.
 """
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import logging
@@ -43,46 +38,41 @@ from shared.env import DEFAULT_PROJECT_ENV_FILE, load_optional_dotenv
 
 log = logging.getLogger("evaluate_relevance_contribution_evidence")
 
-DEFAULT_INPUT_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/relevance_contribution_evidence_evaluate_result/" \
-    "prism_reranker_v1_4B_sft_samples-35001.jsonl"
+# ---------------------------------------------------------------------------
+# Configuration — edit these directly.
+# ---------------------------------------------------------------------------
+
+INPUT_PATH = Path(
+    "/mnt/g/PrismRerankerV1Data/relevance_contribution_evidence_evaluate_result/"
+    "Prism-Qwen3-Reranker-4B-exp.jsonl"
 )
-DEFAULT_SAVE_PATH = Path(
-    "/mnt/g/PrismRerankerV1Data/relevance_contribution_evidence_evaluate_result/" \
-    f"{os.path.basename(DEFAULT_INPUT_PATH)[:-6]}_eval.jsonl"
-)
+# Output paths are derived from INPUT_PATH; no need to set them.
 TEMPLATE_PATH = (
     Path(__file__).resolve().parent / "templates" / "judge_contribution_evidence.j2"
 )
-MAX_RETRIES = 2
-MAX_COMPLETION_TOKENS = 8192
 
-# Provider-specific config: default model, base_url, env var for api key.
-PROVIDER_CONFIGS: dict[str, dict[str, str]] = {
-    "kimi": {
-        "default_model": "kimi-k2.5",
-        "base_url": "https://api.moonshot.ai/v1",
-        "api_key_env": "MOONSHOT_API_KEY",
-    },
-    "deepseek": {
-        "default_model": "deepseek-reasoner",
-        "base_url": "https://api.deepseek.com",
-        "api_key_env": "DEEPSEEK_API_KEY",
-    },
-    "bailian": {
-        "default_model": "deepseek-v3.2",
-        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "api_key_env": "BAILIAN_API_KEY",
-    },
-}
-DEFAULT_PROVIDER = "deepseek"
-ENTITY_EXTRACTOR_MODEL = "deepseek-chat"
+JUDGE_MODEL = "deepseek-v4-pro"
+JUDGE_BASE_URL = "https://api.deepseek.com"
+JUDGE_API_KEY_ENV = "DEEPSEEK_API_KEY"
+
+ENTITY_EXTRACTOR_MODEL = "deepseek-v4-flash"
 ENTITY_EXTRACTOR_API_KEY_ENV = "DEEPSEEK_API_KEY"
+
+BATCH_SIZE = 64
+MAX_WORKERS = 64
+MAX_ROWS: int | None = None  # set None to evaluate the whole file
+ENV_FILE: Path | None = None
+VERBOSE = False
+MAX_RETRIES = 2
+MAX_COMPLETION_TOKENS = 256
+
+# ---------------------------------------------------------------------------
+# Regex / field constants.
+# ---------------------------------------------------------------------------
 
 _CONTRIB_RE = re.compile(r"<contribution>(.*?)</contribution>", re.DOTALL)
 _EVIDENCE_RE = re.compile(r"<evidence>(.*?)</evidence>", re.DOTALL)
 _SCORES_RE = re.compile(r"<scores>(.*?)</scores>", re.DOTALL)
-_REASON_RE = re.compile(r"<reason>(.*?)</reason>", re.DOTALL)
 
 SCORE_FIELDS: tuple[str, ...] = (
     "contribution_accuracy",
@@ -175,25 +165,22 @@ def _parse_contribution_evidence(pred_text: str) -> tuple[str | None, str | None
     return contribution, evidence
 
 
-def _parse_judge_output(raw: str) -> tuple[dict[str, int] | None, str | None]:
-    """Parse <scores> and <reason> blocks from the judge response."""
+def _parse_judge_output(raw: str) -> dict[str, int] | None:
+    """Parse the <scores> block from the judge response."""
     if not raw:
-        return None, None
+        return None
     scores_block = _SCORES_RE.search(raw)
-    reason_block = _REASON_RE.search(raw)
-    reason = reason_block.group(1).strip() if reason_block else None
-
     if not scores_block:
-        return None, reason
+        return None
 
     body = scores_block.group(1)
     scores: dict[str, int] = {}
     for field in SCORE_FIELDS:
         m = re.search(rf"<{field}>\s*([1-5])\s*</{field}>", body)
         if not m:
-            return None, reason
+            return None
         scores[field] = int(m.group(1))
-    return scores, reason
+    return scores
 
 
 def _load_input_rows(input_path: Path) -> list[dict[str, Any]]:
@@ -268,96 +255,56 @@ def _load_template() -> jinja2.Template:
 
 
 # ---------------------------------------------------------------------------
-# Kimi judge call
+# Judge call (deepseek-v4-pro, thinking disabled)
 # ---------------------------------------------------------------------------
 
 
 def _call_judge(
     client: Any,
-    provider: str,
     model_name: str,
     prompt: str,
-    enable_thinking: bool = False,
 ) -> tuple[str | None, str | None]:
-    """Call the judge model via an OpenAI-compatible client.
+    """Call deepseek-v4-pro via an OpenAI-compatible client.
 
     Returns ``(content, reasoning_content)``. Both may be ``None`` on failure.
-
-    - ``kimi``: k2.5 thinking mode is on by default; temperature is fixed at
-      1.0 when thinking is enabled.
-    - ``deepseek``: ``deepseek-reasoner`` silently ignores sampling params,
-      so we don't pass ``temperature``.
-    - ``bailian``: DashScope OpenAI-compatible endpoint; ``enable_thinking``
-      toggles DeepSeek reasoning. When True, reasoning is delivered via
-      streamed ``delta.reasoning_content`` chunks, so we switch to streaming.
+    Thinking is explicitly disabled and ``temperature=0.0`` for determinism.
     """
     kwargs: dict[str, Any] = {
         "model": model_name,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": MAX_COMPLETION_TOKENS,
+        "temperature": 0.0,
+        "extra_body": {"thinking": {"type": "disabled"}},
     }
-    if provider == "kimi":
-        kwargs["temperature"] = 1.0
-    if provider == "bailian":
-        kwargs["extra_body"] = {"enable_thinking": enable_thinking}
-
-    use_stream = provider == "bailian" and enable_thinking
 
     last_exc: Exception | None = None
     for attempt in range(1 + MAX_RETRIES):
         try:
-            if use_stream:
-                content, reasoning = _consume_stream(client, kwargs)
-            else:
-                response = client.chat.completions.create(**kwargs)
-                message = response.choices[0].message
-                content = message.content
-                reasoning = getattr(message, "reasoning_content", None)
+            response = client.chat.completions.create(**kwargs)
+            message = response.choices[0].message
+            content = message.content
+            reasoning = getattr(message, "reasoning_content", None)
             if content and content.strip():
                 reasoning = reasoning.strip() if reasoning else None
                 return content.strip(), reasoning
-            log.debug("%s returned empty content (attempt %d)", provider, attempt + 1)
+            log.debug("deepseek returned empty content (attempt %d)", attempt + 1)
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
             log.warning(
-                "%s call failed (attempt %d): %s: %s",
-                provider,
+                "deepseek call failed (attempt %d): %s: %s",
                 attempt + 1,
                 type(exc).__name__,
                 exc,
             )
     if last_exc is not None:
-        log.warning("%s call gave up after %d retries", provider, MAX_RETRIES + 1)
+        log.warning("deepseek call gave up after %d retries", MAX_RETRIES + 1)
     return None, None
 
 
-def _consume_stream(
-    client: Any, kwargs: dict[str, Any]
-) -> tuple[str | None, str | None]:
-    """Run a streaming completion and accumulate content + reasoning_content."""
-    stream = client.chat.completions.create(**kwargs, stream=True)
-    content_buf: list[str] = []
-    reasoning_buf: list[str] = []
-    for chunk in stream:
-        if not chunk.choices:
-            continue
-        delta = chunk.choices[0].delta
-        chunk_reasoning = getattr(delta, "reasoning_content", None)
-        if chunk_reasoning:
-            reasoning_buf.append(chunk_reasoning)
-        chunk_content = getattr(delta, "content", None)
-        if chunk_content:
-            content_buf.append(chunk_content)
-    content = "".join(content_buf) if content_buf else None
-    reasoning = "".join(reasoning_buf) if reasoning_buf else None
-    return content, reasoning
-
-
-def _build_client(provider: str, api_key: str) -> Any:
+def _build_client(api_key: str) -> Any:
     from openai import OpenAI
 
-    cfg = PROVIDER_CONFIGS[provider]
-    return OpenAI(api_key=api_key, base_url=cfg["base_url"])
+    return OpenAI(api_key=api_key, base_url=JUDGE_BASE_URL)
 
 
 # ---------------------------------------------------------------------------
@@ -403,35 +350,18 @@ def _should_judge(row: dict[str, Any]) -> bool:
 def process(
     input_path: Path,
     save_path: Path,
-    provider: str = DEFAULT_PROVIDER,
-    judge_model: str | None = None,
-    batch_size: int = 16,
-    max_workers: int = 16,
-    max_rows: int | None = None,
-    env_file: Path | None = None,
-    enable_thinking: bool = False,
+    judge_model: str = JUDGE_MODEL,
+    batch_size: int = BATCH_SIZE,
+    max_workers: int = MAX_WORKERS,
+    max_rows: int | None = MAX_ROWS,
+    env_file: Path | None = ENV_FILE,
 ) -> None:
     load_optional_dotenv(env_file=env_file, default_env_file=DEFAULT_PROJECT_ENV_FILE)
 
-    if provider not in PROVIDER_CONFIGS:
-        raise ValueError(
-            f"Unknown provider: {provider}. Choices: {list(PROVIDER_CONFIGS)}"
-        )
-    if enable_thinking and provider != "bailian":
-        log.warning(
-            "--enable_thinking is only supported for provider=bailian; "
-            "ignoring for provider=%s",
-            provider,
-        )
-        enable_thinking = False
-    cfg = PROVIDER_CONFIGS[provider]
-    if judge_model is None:
-        judge_model = cfg["default_model"]
-
-    api_key = os.environ.get(cfg["api_key_env"], "")
+    api_key = os.environ.get(JUDGE_API_KEY_ENV, "")
     if not api_key:
-        raise RuntimeError(f"{cfg['api_key_env']} is not set.")
-    client = _build_client(provider, api_key)
+        raise RuntimeError(f"{JUDGE_API_KEY_ENV} is not set.")
+    client = _build_client(api_key)
 
     entity_api_key = os.environ.get(ENTITY_EXTRACTOR_API_KEY_ENV, "")
     if not entity_api_key:
@@ -468,8 +398,9 @@ def process(
         if _should_judge(enriched_row):
             pending.append(idx)
 
+    pending_set = set(pending)
     to_pass_through = [
-        idx for idx in range(scan_limit) if enriched[idx] and idx not in set(pending)
+        idx for idx in range(scan_limit) if enriched[idx] and idx not in pending_set
     ]
 
     log.info("=" * 60)
@@ -477,9 +408,7 @@ def process(
     log.info("=" * 60)
     log.info("Input:               %s", input_path)
     log.info("Output:              %s", save_path)
-    log.info("Provider:            %s", provider)
     log.info("Judge model:         %s", judge_model)
-    log.info("Enable thinking:     %s", enable_thinking)
     log.info("Scan limit:          %d", scan_limit)
     log.info("Already done:        %d", already_done)
     log.info("Needs judging:       %d", len(pending))
@@ -494,18 +423,14 @@ def process(
         for idx in to_pass_through:
             row = dict(enriched[idx])
             if row.get("annotated_label") == "yes" and row.get("pred_label") == "yes":
-                # yes-yes but parse failed
                 row["eval_status"] = "skipped_no_parse"
             else:
                 row["eval_status"] = "skipped_not_yesyes"
             row["eval_scores"] = None
-            row["eval_reason"] = None
             row["eval_thinking"] = None
             row["eval_raw_content"] = None
             row["entity_fidelity"] = None
             row["judge_model"] = judge_model
-            row["provider"] = provider
-            row["enable_thinking"] = enable_thinking
             row["entity_extractor_model"] = ENTITY_EXTRACTOR_MODEL
             pass_rows.append(row)
         _append_rows(pass_rows, save_path)
@@ -527,9 +452,7 @@ def process(
         fidelity = compute_entity_fidelity(
             evidence, document, entity_client, ENTITY_EXTRACTOR_MODEL
         )
-        content, reasoning = _call_judge(
-            client, provider, judge_model, prompt, enable_thinking=enable_thinking
-        )
+        content, reasoning = _call_judge(client, judge_model, prompt)
         return content, reasoning, fidelity
 
     for batch_start in range(0, len(pending), batch_size):
@@ -576,8 +499,6 @@ def process(
             )
             out_row = dict(enriched[idx])
             out_row["judge_model"] = judge_model
-            out_row["provider"] = provider
-            out_row["enable_thinking"] = enable_thinking
             out_row["entity_extractor_model"] = ENTITY_EXTRACTOR_MODEL
             out_row["entity_fidelity"] = fidelity
             out_row["eval_raw_content"] = content
@@ -585,21 +506,18 @@ def process(
             if content is None:
                 out_row["eval_status"] = "failed"
                 out_row["eval_scores"] = None
-                out_row["eval_reason"] = None
                 out_row["eval_thinking"] = reasoning
                 failed += 1
             else:
-                scores, reason = _parse_judge_output(content)
+                scores = _parse_judge_output(content)
                 if scores is None:
                     out_row["eval_status"] = "failed"
                     out_row["eval_scores"] = None
-                    out_row["eval_reason"] = reason or content[:2000]
                     out_row["eval_thinking"] = reasoning
                     failed += 1
                 else:
                     out_row["eval_status"] = "scored"
                     out_row["eval_scores"] = scores
-                    out_row["eval_reason"] = reason
                     out_row["eval_thinking"] = reasoning
                     written += 1
 
@@ -618,54 +536,62 @@ def process(
     log.info("=" * 60)
 
 
+def _derive_save_path(input_path: Path) -> Path:
+    return input_path.parent / f"{input_path.stem}_eval.jsonl"
+
+
+def _summarize_to_xlsx(save_path: Path, model_name: str) -> Path:
+    """Generate an xlsx summary next to ``save_path`` from its JSONL contents."""
+    from evaluate_relevance_contribution_evidence.summarize import (
+        DISPLAY_NAMES,
+        METRIC_COLUMNS,
+        _column_average,
+        _default_output,
+        _load_rows,
+        _row_to_metrics,
+        _write_xlsx,
+    )
+
+    output_path = _default_output(save_path)
+    rows = _load_rows(save_path)
+    rows_metrics = [_row_to_metrics(r) for r in rows]
+    _write_xlsx(rows_metrics, output_path, model_name=model_name)
+    log.info("Summary xlsx written to %s", output_path)
+
+    log.info("-" * 60)
+    log.info("Per-column averages (over non-empty cells):")
+    for name in METRIC_COLUMNS:
+        avg = _column_average(rows_metrics, name)
+        n = sum(1 for m in rows_metrics if m[name] is not None)
+        display = DISPLAY_NAMES.get(name, name)
+        if avg is None:
+            log.info("  %-26s  n=%-5d  (no values)", display, n)
+        else:
+            log.info("  %-26s  n=%-5d  avg=%.4f", display, n, avg)
+    return output_path
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Evaluate Qwen reranker predictions with Kimi k2.5 as judge.",
-    )
-    parser.add_argument("--input_path", type=Path, default=DEFAULT_INPUT_PATH)
-    parser.add_argument("--save_path", type=Path, default=DEFAULT_SAVE_PATH)
-    parser.add_argument(
-        "--provider",
-        type=str,
-        default=DEFAULT_PROVIDER,
-        choices=list(PROVIDER_CONFIGS),
-        help="LLM provider for the judge call.",
-    )
-    parser.add_argument(
-        "--judge_model",
-        type=str,
-        default=None,
-        help="Override model id; defaults to the provider's default model.",
-    )
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--max_workers", type=int, default=64)
-    parser.add_argument("--max_rows", type=int, default=None)
-    parser.add_argument("--env_file", type=Path, default=None)
-    parser.add_argument(
-        "--enable_thinking",
-        action="store_true",
-        help=("Bailian only: enable DeepSeek thinking mode (r1 behavior, streamed)."),
-    )
-    parser.add_argument("-v", "--verbose", action="store_true")
-    args = parser.parse_args()
+    _setup_logging(verbose=VERBOSE)
 
-    _setup_logging(verbose=args.verbose)
-
-    if not args.input_path.exists():
-        log.error("input_path not found: %s", args.input_path)
+    if not INPUT_PATH.exists():
+        log.error("INPUT_PATH not found: %s", INPUT_PATH)
         sys.exit(1)
 
+    save_path = _derive_save_path(INPUT_PATH)
+    model_name = INPUT_PATH.stem
+
     process(
-        input_path=args.input_path,
-        save_path=args.save_path,
-        provider=args.provider,
-        judge_model=args.judge_model,
-        batch_size=args.batch_size,
-        max_workers=args.max_workers,
-        max_rows=args.max_rows,
-        env_file=args.env_file,
-        enable_thinking=args.enable_thinking,
+        input_path=INPUT_PATH,
+        save_path=save_path,
+        judge_model=JUDGE_MODEL,
+        batch_size=BATCH_SIZE,
+        max_workers=MAX_WORKERS,
+        max_rows=MAX_ROWS,
+        env_file=ENV_FILE,
     )
+
+    _summarize_to_xlsx(save_path, model_name=model_name)
 
 
 if __name__ == "__main__":

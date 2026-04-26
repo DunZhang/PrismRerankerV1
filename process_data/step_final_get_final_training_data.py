@@ -15,13 +15,20 @@ from os.path import join
 #
 #     return item
 
+
+# def _add_score(item):
+#     try:
+#         item["revised_score"] = item["voyage-rerank-2.5_score"] ** 1.45
+#         return item
+#     except:
+#         return None
+
 def _add_score(item):
     try:
-        item["revised_score"] = item["voyage-rerank-2.5_score"] ** 1.45
+        item["revised_score"] = item["Qwen3-Reranker-4B_score"] ** 0.6425
         return item
     except:
         return None
-
 
 def main(qp_contribution_evidence_path, rerank_distill_path):
     sft_data, sft_qd = [], []

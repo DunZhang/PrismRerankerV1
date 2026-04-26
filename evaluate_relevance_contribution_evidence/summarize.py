@@ -1,7 +1,10 @@
 """Summarize the enriched JSONL produced by ``evaluate.py`` into a single xlsx.
 
-Each row in the output corresponds to one input sample; columns are the metric
-names; the final row holds the per-column average over non-empty cells.
+The output xlsx has a fixed shape:
+- header row: ``model`` + one column per metric (``label_match`` shown as
+  ``accuracy`` because its average is the label-prediction accuracy)
+- one data row: the model name in column A, then the per-column average
+  over non-empty cells
 
 Usage:
     uv run python -m evaluate_relevance_contribution_evidence.summarize \\
@@ -36,16 +39,26 @@ METRIC_COLUMNS: tuple[str, ...] = (
     "entity_fidelity",
     *SCORE_FIELDS,
 )
+# label_match averaged over yes/no per row is exactly classification accuracy.
+DISPLAY_NAMES: dict[str, str] = {"label_match": "accuracy"}
+MODEL_COLUMN_HEADER = "model"
 SHEET_TITLE = "metrics"
 HEADER_FILL = PatternFill(start_color="DCE6F1", end_color="DCE6F1", fill_type="solid")
 BOLD = Font(bold=True)
 CENTER = Alignment(horizontal="center")
 COLUMN_WIDTH = 22
+MODEL_COLUMN_WIDTH = 36
 FLOAT_FORMAT = "0.0000"
 
 
 def _default_output(input_path: Path) -> Path:
     return input_path.parent / f"{input_path.stem}_summary.xlsx"
+
+
+def _default_model_name(input_path: Path) -> str:
+    """Strip a trailing ``_eval`` from the eval JSONL stem to recover the model id."""
+    stem = input_path.stem
+    return stem[:-5] if stem.endswith("_eval") else stem
 
 
 def _setup_logging() -> None:
@@ -102,39 +115,38 @@ def _column_average(
 
 
 def _write_xlsx(
-    rows_metrics: list[dict[str, float | int | None]], output_path: Path
+    rows_metrics: list[dict[str, float | int | None]],
+    output_path: Path,
+    model_name: str,
 ) -> None:
+    """Write a 2-row sheet: header (model + metric display names), then averages."""
     wb = Workbook()
     ws = wb.active
     ws.title = SHEET_TITLE
 
-    for col_idx, name in enumerate(METRIC_COLUMNS, start=1):
+    headers = [MODEL_COLUMN_HEADER] + [
+        DISPLAY_NAMES.get(name, name) for name in METRIC_COLUMNS
+    ]
+    for col_idx, name in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col_idx, value=name)
         cell.font = BOLD
         cell.fill = HEADER_FILL
         cell.alignment = CENTER
 
-    for row_idx, metrics in enumerate(rows_metrics, start=2):
-        for col_idx, name in enumerate(METRIC_COLUMNS, start=1):
-            value = metrics[name]
-            if value is None:
-                continue
-            cell = ws.cell(row=row_idx, column=col_idx, value=value)
-            if isinstance(value, float):
-                cell.number_format = FLOAT_FORMAT
-            cell.alignment = CENTER
+    model_cell = ws.cell(row=2, column=1, value=model_name)
+    model_cell.font = BOLD
+    model_cell.alignment = CENTER
 
-    avg_row = len(rows_metrics) + 2
-    for col_idx, name in enumerate(METRIC_COLUMNS, start=1):
-        avg = _column_average(rows_metrics, name)
+    for col_idx, metric_name in enumerate(METRIC_COLUMNS, start=2):
+        avg = _column_average(rows_metrics, metric_name)
         if avg is None:
             continue
-        cell = ws.cell(row=avg_row, column=col_idx, value=float(avg))
+        cell = ws.cell(row=2, column=col_idx, value=float(avg))
         cell.number_format = FLOAT_FORMAT
-        cell.font = BOLD
         cell.alignment = CENTER
 
-    for col_idx in range(1, len(METRIC_COLUMNS) + 1):
+    ws.column_dimensions[get_column_letter(1)].width = MODEL_COLUMN_WIDTH
+    for col_idx in range(2, len(headers) + 1):
         ws.column_dimensions[get_column_letter(col_idx)].width = COLUMN_WIDTH
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -150,6 +162,12 @@ def main() -> None:
         default=None,
         help="Output xlsx path. Defaults to <input_parent>/<input_stem>_summary.xlsx.",
     )
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default=None,
+        help="Row label for the summary. Defaults to <input_stem> with a trailing '_eval' stripped.",
+    )
     args = parser.parse_args()
 
     _setup_logging()
@@ -159,12 +177,13 @@ def main() -> None:
         sys.exit(1)
 
     output_path: Path = args.output or _default_output(args.input)
+    model_name: str = args.model_name or _default_model_name(args.input)
 
     rows = _load_rows(args.input)
     log.info("Loaded %d rows from %s", len(rows), args.input)
 
     rows_metrics = [_row_to_metrics(r) for r in rows]
-    _write_xlsx(rows_metrics, output_path)
+    _write_xlsx(rows_metrics, output_path, model_name=model_name)
     log.info("Wrote %s", output_path)
 
     log.info("-" * 60)
@@ -172,10 +191,11 @@ def main() -> None:
     for name in METRIC_COLUMNS:
         avg = _column_average(rows_metrics, name)
         n = sum(1 for m in rows_metrics if m[name] is not None)
+        display = DISPLAY_NAMES.get(name, name)
         if avg is None:
-            log.info("  %-26s  n=%-5d  (no values)", name, n)
+            log.info("  %-26s  n=%-5d  (no values)", display, n)
         else:
-            log.info("  %-26s  n=%-5d  avg=%.4f", name, n, avg)
+            log.info("  %-26s  n=%-5d  avg=%.4f", display, n, avg)
 
 
 if __name__ == "__main__":

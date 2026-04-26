@@ -30,7 +30,7 @@ JSONL，每行至少包含：
 |---|---|---|---|---|
 | `entity_fidelity` | 0.0–1.0 | `annotated == pred == yes` | `deepseek-chat` 从 evidence 抽专名/术语/代号/URL，正则补抽数字/百分比/日期/时间；合并去重后逐个检查是否在 `document` 中逐字出现；score = present/total | [`compute_entity_fidelity`](entity_fidelity.py) 在 [entity_fidelity.py](entity_fidelity.py) |
 
-### 3) LLM 裁判（默认 deepseek-reasoner，可切阿里云百炼 deepseek-v3.2、kimi-k2.5）
+### 3) LLM 裁判（deepseek-v4-pro，固定）
 
 以下 6 个维度由**一次裁判调用同时产出**，各自独立打分、**不做综合不加权**。适用样本：`annotated == pred == yes`。裁判 prompt：[templates/judge_contribution_evidence.j2](templates/judge_contribution_evidence.j2)。解析逻辑：[`_parse_judge_output`](evaluate.py) 在 [evaluate.py](evaluate.py)。
 
@@ -49,44 +49,31 @@ JSONL，每行至少包含：
 
 ## 环境
 
-`DEEPSEEK_API_KEY` **始终必填**（实体保真检查固定走 `deepseek-chat` 抽实体，无论裁判用哪家）。此外按裁判 provider 再加一把 key：
-
-- `--provider deepseek`（默认）：复用上面的 `DEEPSEEK_API_KEY`，无需额外 key
-- `--provider bailian`：`BAILIAN_API_KEY`（阿里云百炼 DashScope 的 key）
-- `--provider kimi`：`MOONSHOT_API_KEY`
-
-所有 key 写入项目根 `.env`，`shared.env` 自动加载。
+`DEEPSEEK_API_KEY` 必填，裁判（`deepseek-v4-pro`）和实体抽取（`deepseek-chat`）共用同一把 key。写入项目根 `.env`，`shared.env` 自动加载。
 
 ## 用法
 
+`evaluate.py` 没有命令行参数；所有可调项都是文件顶部的大写全局变量，直接改源码：
+
+输出路径全部由 `INPUT_PATH` 自动派生：JSONL 是 `<INPUT_PATH 同目录>/<stem>_eval.jsonl`，xlsx 是 `<...>/<stem>_eval_summary.xlsx`，模型名取 `INPUT_PATH.stem`。
+
+| 全局变量 | 默认值 | 含义 |
+|---|---|---|
+| `INPUT_PATH` | 见源码 | 输入 JSONL 路径（**唯一需要改的路径**） |
+| `JUDGE_MODEL` | `deepseek-v4-pro` | 裁判模型 |
+| `JUDGE_BASE_URL` | `https://api.deepseek.com` | 裁判 base_url |
+| `JUDGE_API_KEY_ENV` | `DEEPSEEK_API_KEY` | 裁判 api key 的环境变量名 |
+| `ENTITY_EXTRACTOR_MODEL` | `deepseek-chat` | 实体抽取模型 |
+| `BATCH_SIZE` / `MAX_WORKERS` | 64 / 64 | 批大小 / 并发线程数 |
+| `MAX_ROWS` | `30` | 仅处理前 N 行，`None` 表示全量；调试时常用 |
+| `ENV_FILE` | `None` | 自定义 `.env` 路径，`None` 走默认 |
+| `VERBOSE` | `False` | 打开 DEBUG 日志 |
+
 ```bash
-# 小样本 dry run（10 行，默认 provider=deepseek，模型 deepseek-reasoner）
-uv run python -m evaluate_relevance_contribution_evidence.evaluate \
-    --input_path /path/to/pred_res.jsonl \
-    --save_path  /tmp/eval_sample.jsonl \
-    --max_rows 10 -v
+# 改完源码后直接运行；评估完成会自动在 SAVE_PATH 旁产出 *_summary.xlsx
+uv run python -m evaluate_relevance_contribution_evidence.evaluate
 
-# 全量（默认 deepseek-reasoner）
-uv run python -m evaluate_relevance_contribution_evidence.evaluate \
-    --input_path /path/to/pred_res.jsonl \
-    --save_path  /path/to/eval.jsonl
-
-# 换 Kimi 做裁判
-uv run python -m evaluate_relevance_contribution_evidence.evaluate \
-    --provider kimi --judge_model kimi-k2.5 \
-    --input_path /path/to/pred_res.jsonl --save_path /path/to/eval.jsonl
-
-# 阿里云百炼 deepseek-v3.2（不开思考）
-uv run python -m evaluate_relevance_contribution_evidence.evaluate \
-    --provider bailian \
-    --input_path /path/to/pred_res.jsonl --save_path /path/to/eval.jsonl
-
-# 阿里云百炼 deepseek-v3.2（开思考，走流式聚合 reasoning_content）
-uv run python -m evaluate_relevance_contribution_evidence.evaluate \
-    --provider bailian --enable_thinking \
-    --input_path /path/to/pred_res.jsonl --save_path /path/to/eval.jsonl
-
-# 汇总（output 默认是 <input_parent>/<input_stem>_summary.xlsx）
+# 单独跑汇总（如需用别的 JSONL 二次汇总）
 uv run python -m evaluate_relevance_contribution_evidence.summarize \
     --input /path/to/eval.jsonl
 ```
@@ -101,9 +88,7 @@ uv run python -m evaluate_relevance_contribution_evidence.evaluate_annotated \
     --save_path  /path/to/step9_eval.jsonl
 ```
 
-CLI 参数与 `evaluate` 一致：`--provider` / `--judge_model` / `--batch_size` / `--max_workers` / `--max_rows` / `--env_file` / `--enable_thinking` / `-v`。
-
-CLI 参数：`--input_path` / `--save_path` / `--provider {deepseek,kimi,bailian}`（默认 `deepseek`）/ `--judge_model`（默认取 provider 对应的默认模型：deepseek→`deepseek-reasoner`、bailian→`deepseek-v3.2`、kimi→`kimi-k2.5`）/ `--batch_size`（默认 64）/ `--max_workers`（默认 64）/ `--max_rows` / `--env_file` / `--enable_thinking`（仅 `--provider bailian` 生效）/ `-v`。
+> 注：`evaluate_annotated.py` 仍保留 CLI 参数（`--provider` / `--judge_model` / `--batch_size` / `--max_workers` / `--max_rows` / `--env_file` / `--enable_thinking` / `-v`），暂未与 `evaluate.py` 同步精简。
 
 ## 输出
 
@@ -121,17 +106,18 @@ CLI 参数：`--input_path` / `--save_path` / `--provider {deepseek,kimi,bailian
 | `entity_fidelity` | `dict \| null` | `{score, extracted, missing}`（仅 yes/yes） |
 | `eval_scores` | `dict \| null` | 6 个维度的整数分 |
 | `eval_status` | `scored \| skipped_not_yesyes \| skipped_no_parse \| failed` | 评估状态 |
-| `eval_reason` | `str \| null` | 裁判理由 |
-| `eval_thinking` | `str \| null` | 裁判 `reasoning_content`（deepseek-reasoner / kimi thinking / bailian thinking 流式聚合） |
+| `eval_thinking` | `str \| null` | 裁判 `reasoning_content`（thinking 已禁用，恒为 `null`） |
 | `eval_raw_content` | `str \| null` | 裁判原始返回文本（未解析前），方便排查解析失败 |
-| `judge_model` | `str` | 裁判模型 id |
-| `provider` | `str` | 裁判 provider（`bailian` / `deepseek` / `kimi`） |
-| `enable_thinking` | `bool` | 是否开了 bailian 思考模式（其它 provider 恒为 `false`） |
+| `judge_model` | `str` | 裁判模型 id（恒为 `deepseek-v4-pro`） |
 | `entity_extractor_model` | `str` | 实体抽取模型 id，当前固定 `deepseek-chat` |
 
-### 汇总产物（单文件 xlsx，默认 `<input_parent>/<input_stem>_summary.xlsx`）
+### 汇总产物（单文件 xlsx，自动产出，路径为 `<INPUT_PATH 同目录>/<INPUT_PATH.stem>_eval_summary.xlsx`）
 
-单 sheet `metrics`，列名即指标名（顺序固定）：`label_match`（1/0）、`format_score`、`entity_fidelity`、`contribution_accuracy`、`contribution_coverage`、`evidence_faithfulness`、`evidence_self_contained`、`evidence_concision`、`language_consistency`。每行对应一条样本（与输入 JSONL 行序一致），缺失值留空；最后一行为各列在非空单元格上的均值（粗体）。
+单 sheet `metrics`，**只有表头 + 一行汇总**：
+
+- A 列 `model` 写模型名（取 `INPUT_PATH.stem`，比如 `Prism-Qwen3.5-Reranker-0.8B`）
+- 其余列依次是各维度在非空单元格上的均值：`accuracy`（即 `label_match` 平均，分类准确率）、`format_score`、`entity_fidelity`、`contribution_accuracy`、`contribution_coverage`、`evidence_faithfulness`、`evidence_self_contained`、`evidence_concision`、`language_consistency`
+- 不再写每条样本的逐行明细
 
 ## 断点续传
 

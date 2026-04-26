@@ -50,7 +50,7 @@ TRAINING_INSTRUCTION: str = (
     "- Concise: drop query-irrelevant background.\n"
     "- Verbatim (no translation): proper nouns, terms, abbreviations, "
     "numbers, dates, code, URLs.\n"
-    "- Narrative text uses the document's primary language."
+    "- Output language: multilingual doc → query's language; else doc's language."
     "</evidence>"
 )
 

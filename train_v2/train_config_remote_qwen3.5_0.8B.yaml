@@ -46,12 +46,12 @@ data:
   eval_batch_size: 1
 
 training:
-  num_epochs: 2
+  num_epochs: 3
   learning_rate: 1.0e-5
   weight_decay: 0.01
   warmup_steps: 100
   lr_scheduler: "cosine"  # cosine | linear
-  grad_accum_steps: 8
+  grad_accum_steps: 16
   max_grad_norm: 1.0  # 0 表示不做梯度裁剪
   seed: 42
 
@@ -62,7 +62,7 @@ loss:
 output:
   dir: "/mnt/data/train_output/Prism-Qwen3.5-Reranker-0.8B"
   run_name: "Prism-Qwen3.5-Reranker-0.8B"
-  save_interval_samples: 2000  # 按全局 seen samples 定期保存 checkpoint
+  save_interval_samples: 4000  # 按全局 seen samples 定期保存 checkpoint
 
 logging:
   wandb_project: "prism-reranker-v1"

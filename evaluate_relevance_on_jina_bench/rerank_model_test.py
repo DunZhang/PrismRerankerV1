@@ -15,7 +15,11 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -35,15 +39,24 @@ from .eval_topk import compute_ndcg10_from_jsonl
 
 # ---------------------------------------------------------------------------
 # Global Config — edit these instead of passing CLI flags
+# python -m evaluate_relevance_on_jina_bench rerank_model_test
 # ---------------------------------------------------------------------------
-MODEL_PATH: str = "/root/prism_reranker_v1_4B_sft_samples-40003"
+# python -m evaluate_relevance_on_jina_bench rerank_model_test /root/prism_released_models/Prism-Qwen3-Reranker-4B-exp
+# python -m evaluate_relevance_on_jina_bench rerank_model_test /root/prism_released_models/Prism-Qwen3.5-Reranker-0.8B
+#
+#
+MODEL_PATH: str = os.environ.get(
+    "MODEL_PATH", "/root/prism_released_models/Prism-Qwen3.5-Reranker-0.8B"
+)
 # MODEL_PATH: str = "/mnt/data/public_models/Qwen3-Reranker-8B"
-INPUT_DIR: str = "/mnt/data/PrismRerankerV1Data/jina_bench_result"
-# Parent results root — the effective output dir is ``<OUTPUT_DIR>/<model-name>``
-# so swapping MODEL_PATH never pollutes another model's file-level cache.
-OUTPUT_DIR: str = "/mnt/data/PrismRerankerV1Data/jina_bench_result"
-BATCH_SIZE: int = 2
-MAX_MODEL_LEN: int = 10240
+INPUT_DIR: str = os.environ.get(
+    "INPUT_DIR", "/mnt/data/PrismRerankerV1Data/jina_bench_result"
+)
+OUTPUT_DIR: str = os.environ.get(
+    "OUTPUT_DIR", "/mnt/data/PrismRerankerV1Data/jina_bench_result"
+)
+BATCH_SIZE: int = 1
+MAX_MODEL_LEN: int = 6000
 
 # ---------------------------------------------------------------------------
 # Qwen3-Reranker branch (activated when MODEL_PATH contains "Qwen3-Reranker")
@@ -67,6 +80,86 @@ def _is_qwen3_reranker(model_path: str) -> bool:
 
 def _format_qwen3_content(query: str, doc: str) -> str:
     return f"<Instruct>: {QWEN3_INSTRUCTION}\n<Query>: {query}\n<Document>: {doc}"
+
+
+def _count_lines(fpath: Path) -> int:
+    count = 0
+    with open(fpath, "rb") as f:
+        for _ in f:
+            count += 1
+    return count
+
+
+# ---------------------------------------------------------------------------
+# Incremental checkpoint helpers
+# ---------------------------------------------------------------------------
+
+
+def _compute_pair_hash(query: str, doc: str) -> str:
+    return hashlib.sha256((query + "\0" + doc).encode()).hexdigest()[:16]
+
+
+def _checkpoint_dir(output_dir: Path, file_name: str) -> Path:
+    return output_dir / ".checkpoints" / Path(file_name).stem
+
+
+def _load_checkpoint(ckpt_dir: Path) -> dict[str, float]:
+    """Read all checkpoint JSONL files, return hash -> score mapping."""
+    result: dict[str, float] = {}
+    if not ckpt_dir.exists():
+        return result
+    for ckpt_file in sorted(ckpt_dir.glob("*.jsonl")):
+        with open(ckpt_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    result[entry["hash"]] = entry["score"]
+                except (json.JSONDecodeError, KeyError):
+                    continue
+    return result
+
+
+def _append_checkpoint(
+    ckpt_path: Path, items: list[dict[str, Any]], scores: list[float]
+) -> None:
+    with open(ckpt_path, "a", encoding="utf-8") as f:
+        for item, score in zip(items, scores):
+            entry = {
+                "hash": _compute_pair_hash(item["query"], item["doc"]),
+                "score": score,
+            }
+            f.write(json.dumps(entry) + "\n")
+
+
+def _clear_checkpoint(ckpt_dir: Path) -> None:
+    if ckpt_dir.exists():
+        shutil.rmtree(ckpt_dir)
+
+
+def _split_cached_and_new(
+    items: list[dict[str, Any]], cached_scores: dict[str, float]
+) -> tuple[list[float], list[dict[str, Any]], list[int]]:
+    """Separate items into cached (score filled) and new (need scoring).
+
+    Returns (all_scores, new_items, new_indices). ``all_scores`` has cached
+    values at the right positions and 0.0 for items that still need scoring.
+    ``new_indices[i]`` is the position in the original ``items`` list for
+    ``new_items[i]``.
+    """
+    all_scores: list[float] = [0.0] * len(items)
+    new_items: list[dict[str, Any]] = []
+    new_indices: list[int] = []
+    for idx, item in enumerate(items):
+        h = _compute_pair_hash(item["query"], item["doc"])
+        if h in cached_scores:
+            all_scores[idx] = cached_scores[h]
+        else:
+            new_items.append(item)
+            new_indices.append(idx)
+    return all_scores, new_items, new_indices
 
 
 def _load_file_items(
@@ -239,6 +332,7 @@ def _score_items(
     device: str,
     desc: str,
     pbar_position: int = 0,
+    ckpt_path: Path | None = None,
 ) -> list[float]:
     """Score every item; branches on ``bundle['mode']`` for Qwen3-Reranker vs Prism."""
     model = bundle["model"]
@@ -267,6 +361,10 @@ def _score_items(
         batch_scores = _compute_batch_scores(bundle, logits)
         for i, s in enumerate(batch_scores):
             scores[start + i] = s
+
+        if ckpt_path is not None:
+            _append_checkpoint(ckpt_path, batch, batch_scores)
+
         pbar.update(len(batch))
 
     pbar.close()
@@ -290,8 +388,11 @@ def _worker_loop(
         task = in_q.get()
         if task is None:
             break
-        file_name, items = task
+        file_name, items, ckpt_dir_str = task
         shard = items[rank::world_size]
+        ckpt_path: Path | None = None
+        if ckpt_dir_str:
+            ckpt_path = Path(ckpt_dir_str) / f"scores_rank{rank}.jsonl"
         scores = _score_items(
             bundle,
             shard,
@@ -299,6 +400,7 @@ def _worker_loop(
             device,
             desc=f"GPU{rank} {file_name}",
             pbar_position=rank,
+            ckpt_path=ckpt_path,
         )
         out_q.put(("done", rank, scores))
 
@@ -379,24 +481,41 @@ def _run_single_gpu(
             _evaluate_and_record(input_dir, out_path, results)
             continue
 
-        if bundle is None:
-            print(f"Loading model on {device} ...")
-            bundle = _load_model(MODEL_PATH, device)
-            print(f"Model loaded (mode={bundle['mode']}, max_len={bundle['max_len']}).")
-
         records, items = _load_file_items(fpath)
+        ckpt_dir = _checkpoint_dir(output_dir, fpath.name)
+        cached_scores = _load_checkpoint(ckpt_dir)
+        all_scores, new_items, new_indices = _split_cached_and_new(
+            items, cached_scores
+        )
         print(
             f"\n=== [{file_idx}/{len(jsonl_paths)}] {fpath.name}: "
-            f"{len(records)} queries, {len(items)} pairs ==="
+            f"{len(records)} queries, {len(items)} pairs "
+            f"({len(items) - len(new_items)} cached, {len(new_items)} new) ==="
         )
-        scores = _score_items(
-            bundle,
-            items,
-            BATCH_SIZE,
-            device,
-            desc=fpath.name,
-        )
-        _emit_reranked(records, items, scores, out_path)
+
+        if new_items:
+            if bundle is None:
+                print(f"Loading model on {device} ...")
+                bundle = _load_model(MODEL_PATH, device)
+                print(
+                    f"Model loaded (mode={bundle['mode']}, "
+                    f"max_len={bundle['max_len']})."
+                )
+            ckpt_dir.mkdir(parents=True, exist_ok=True)
+            ckpt_path = ckpt_dir / "scores.jsonl"
+            new_scores = _score_items(
+                bundle,
+                new_items,
+                BATCH_SIZE,
+                device,
+                desc=fpath.name,
+                ckpt_path=ckpt_path,
+            )
+            for i, idx in enumerate(new_indices):
+                all_scores[idx] = new_scores[i]
+
+        _emit_reranked(records, items, all_scores, out_path)
+        _clear_checkpoint(ckpt_dir)
         _evaluate_and_record(input_dir, out_path, results)
     return results
 
@@ -448,28 +567,45 @@ def _run_multi_gpu(
     try:
         for file_idx, fpath in enumerate(pending, start=1):
             records, items = _load_file_items(fpath)
+            ckpt_dir = _checkpoint_dir(output_dir, fpath.name)
+            cached_scores = _load_checkpoint(ckpt_dir)
+            all_scores, new_items, new_indices = _split_cached_and_new(
+                items, cached_scores
+            )
             print(
                 f"\n=== [{file_idx}/{len(pending)}] {fpath.name}: "
-                f"{len(records)} queries, {len(items)} pairs ==="
+                f"{len(records)} queries, {len(items)} pairs "
+                f"({len(items) - len(new_items)} cached, "
+                f"{len(new_items)} new) ==="
             )
-            for rank in range(world_size):
-                in_qs[rank].put((fpath.name, items))
 
-            shard_scores: dict[int, list[float]] = {}
-            received = 0
-            while received < world_size:
-                tag, rank, payload = out_q.get()
-                if tag == "done":
-                    shard_scores[rank] = payload
-                    received += 1
+            if new_items:
+                ckpt_dir.mkdir(parents=True, exist_ok=True)
+                ckpt_dir_str = str(ckpt_dir)
+                for rank in range(world_size):
+                    in_qs[rank].put((fpath.name, new_items, ckpt_dir_str))
 
-            scores = [0.0] * len(items)
-            for rank, s in shard_scores.items():
-                for i, sc in zip(range(rank, len(items), world_size), s):
-                    scores[i] = sc
+                shard_scores: dict[int, list[float]] = {}
+                received = 0
+                while received < world_size:
+                    tag, rank, payload = out_q.get()
+                    if tag == "done":
+                        shard_scores[rank] = payload
+                        received += 1
+
+                new_scores = [0.0] * len(new_items)
+                for rank, s in shard_scores.items():
+                    for i, sc in zip(
+                        range(rank, len(new_items), world_size), s
+                    ):
+                        new_scores[i] = sc
+
+                for i, idx in enumerate(new_indices):
+                    all_scores[idx] = new_scores[i]
 
             out_path = output_dir / fpath.name
-            _emit_reranked(records, items, scores, out_path)
+            _emit_reranked(records, items, all_scores, out_path)
+            _clear_checkpoint(ckpt_dir)
             _evaluate_and_record(input_dir, out_path, results)
     finally:
         for rank in range(world_size):
@@ -482,6 +618,10 @@ def _run_multi_gpu(
 
 def main() -> None:
     """Entry point: rerank top-K JSONLs file-by-file and report NDCG@10."""
+    global MODEL_PATH
+    if len(sys.argv) > 1:
+        MODEL_PATH = sys.argv[1]
+
     input_dir = Path(INPUT_DIR)
     # Per-model subdirectory so swapping MODEL_PATH never collides with another
     # model's file-level cache.
@@ -493,7 +633,9 @@ def main() -> None:
     if not jsonl_paths:
         print(f"No *_top*.jsonl found in {input_dir}")
         return
-    print(f"Found {len(jsonl_paths)} files. batch_size={BATCH_SIZE}")
+
+    jsonl_paths.sort(key=_count_lines)
+    print(f"Found {len(jsonl_paths)} files (sorted by query count asc). batch_size={BATCH_SIZE}")
 
     num_gpus = torch.cuda.device_count() or 1
     world_size = num_gpus

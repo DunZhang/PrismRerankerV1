@@ -459,8 +459,8 @@ output_dir/
 
 ```
 # 推荐：accelerate（会自动按 --num_processes 配 DDP）
-accelerate launch --num_processes 8 train_v2.py --config train_config_remote_qwen3.5_4B.yaml
+accelerate launch --num_processes 2 train_v2.py --config train_config_remote_qwen3.5_2B.yaml
 python train_v2.py --config  train_config_remote_qwen3.5_9B.yaml
-accelerate launch --num_processes 8 train_v2.py --config train_config_remote_qwen3.5_9B.yaml
+accelerate launch --num_processes 8 train_v2.py --config train_config_remote_qwen3.5_4B.yaml
 
 ```

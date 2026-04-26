@@ -53,7 +53,7 @@ TEMPLATE_PATH = (
     Path(__file__).resolve().parent / "templates" / "judge_contribution_evidence.j2"
 )
 MAX_RETRIES = 2
-MAX_COMPLETION_TOKENS = 4096
+MAX_COMPLETION_TOKENS = 256
 
 PROVIDER_CONFIGS: dict[str, dict[str, str]] = {
     "kimi": {
@@ -62,7 +62,7 @@ PROVIDER_CONFIGS: dict[str, dict[str, str]] = {
         "api_key_env": "MOONSHOT_API_KEY",
     },
     "deepseek": {
-        "default_model": "deepseek-reasoner",
+        "default_model": "deepseek-v4-pro",
         "base_url": "https://api.deepseek.com",
         "api_key_env": "DEEPSEEK_API_KEY",
     },
@@ -79,7 +79,6 @@ ENTITY_EXTRACTOR_API_KEY_ENV = "DEEPSEEK_API_KEY"
 _CONTRIB_RE = re.compile(r"<contribution>(.*?)</contribution>", re.DOTALL)
 _EVIDENCE_RE = re.compile(r"<evidence>(.*?)</evidence>", re.DOTALL)
 _SCORES_RE = re.compile(r"<scores>(.*?)</scores>", re.DOTALL)
-_REASON_RE = re.compile(r"<reason>(.*?)</reason>", re.DOTALL)
 
 SCORE_FIELDS: tuple[str, ...] = (
     "contribution_accuracy",
@@ -131,25 +130,22 @@ def _parse_contribution_evidence(text: str) -> tuple[str | None, str | None]:
     return contribution, evidence
 
 
-def _parse_judge_output(raw: str) -> tuple[dict[str, int] | None, str | None]:
-    """Parse <scores> and <reason> blocks from the judge response."""
+def _parse_judge_output(raw: str) -> dict[str, int] | None:
+    """Parse the <scores> block from the judge response."""
     if not raw:
-        return None, None
+        return None
     scores_block = _SCORES_RE.search(raw)
-    reason_block = _REASON_RE.search(raw)
-    reason = reason_block.group(1).strip() if reason_block else None
-
     if not scores_block:
-        return None, reason
+        return None
 
     body = scores_block.group(1)
     scores: dict[str, int] = {}
     for field in SCORE_FIELDS:
         m = re.search(rf"<{field}>\s*([1-5])\s*</{field}>", body)
         if not m:
-            return None, reason
+            return None
         scores[field] = int(m.group(1))
-    return scores, reason
+    return scores
 
 
 def _load_input_rows(input_path: Path) -> list[dict[str, Any]]:
@@ -245,6 +241,9 @@ def _call_judge(
     }
     if provider == "kimi":
         kwargs["temperature"] = 1.0
+    if provider == "deepseek":
+        kwargs["temperature"] = 0.0
+        kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     if provider == "bailian":
         kwargs["extra_body"] = {"enable_thinking": enable_thinking}
 
@@ -436,7 +435,6 @@ def process(
             else:
                 row["eval_status"] = "skipped_not_yes"
             row["eval_scores"] = None
-            row["eval_reason"] = None
             row["eval_thinking"] = None
             row["eval_raw_content"] = None
             row["entity_fidelity"] = None
@@ -522,21 +520,18 @@ def process(
             if content is None:
                 out_row["eval_status"] = "failed"
                 out_row["eval_scores"] = None
-                out_row["eval_reason"] = None
                 out_row["eval_thinking"] = reasoning
                 failed += 1
             else:
-                scores, reason = _parse_judge_output(content)
+                scores = _parse_judge_output(content)
                 if scores is None:
                     out_row["eval_status"] = "failed"
                     out_row["eval_scores"] = None
-                    out_row["eval_reason"] = reason or content[:2000]
                     out_row["eval_thinking"] = reasoning
                     failed += 1
                 else:
                     out_row["eval_status"] = "scored"
                     out_row["eval_scores"] = scores
-                    out_row["eval_reason"] = reason
                     out_row["eval_thinking"] = reasoning
                     written += 1
 
