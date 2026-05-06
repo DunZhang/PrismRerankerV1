@@ -1,7 +1,36 @@
+QUERY = "What is the boiling point of water at sea level?"
+DOCUMENTS = [
+    "Water boils at 100 C (212 F) at standard atmospheric pressure (1 atm), "
+    "which corresponds to sea-level conditions.",
+    "Mount Everest is the highest mountain on Earth, with a peak elevation "
+    "of 8,848 meters above sea level.",
+]
+
+import torch
+from sentence_transformers import CrossEncoder
+
+MODEL_PATH = "/mnt/g/prism_released_models/Prism-Qwen3.5-Reranker-0.8B"  # or any sibling repo above
+
+ce = CrossEncoder(MODEL_PATH, model_kwargs={"torch_dtype": torch.bfloat16})
+
+# 1) Score (q, d) pairs. The default activation is Sigmoid, so scores are in (0, 1)
+# and equal to s(q, d) = sigmoid(logit_yes - logit_no) — identical to path A above.
+pairs = [(QUERY, doc) for doc in DOCUMENTS]
+scores = ce.predict(pairs)
+print(scores)
+# array([0.98, 0.01], dtype=float32)
+
+# 2) Rank documents directly.
+ranked = ce.rank(QUERY, DOCUMENTS, return_documents=True)
+for r in ranked:
+    print(f"{r['score']:.3f}\t{r['corpus_id']}\t{r['text'][:80]}")
+
+#######################################################################
+#######################################################################
+#######################################################################
+#######################################################################
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
-MODEL_PATH = "/mnt/g/prism_released_models/Prism-Qwen3.5-Reranker-4B/"
 
 SYSTEM_PROMPT = (
     "Judge whether the Document meets the requirements based on "
@@ -19,7 +48,7 @@ INSTRUCTION = (
     "- Concise: drop query-irrelevant background.\n"
     "- Verbatim (no translation): proper nouns, terms, abbreviations, "
     "numbers, dates, code, URLs.\n"
-    "- Output language: multilingual doc -> query's language; else doc's language."
+    "- Output language: multilingual doc → query's language; else doc's language."
     "</evidence>"
 )
 
@@ -77,11 +106,5 @@ def rerank(query: str, doc: str, max_new_tokens: int = 512):
     return {"score": score, "text": text}
 
 
-example = rerank(
-    query="What is the boiling point of water at sea level?",
-    doc=(
-        "Water boils at 100 C (212 F) at standard atmospheric pressure (1 atm), "
-        "which corresponds to sea-level conditions."
-    ),
-)
-print(example)
+for doc in DOCUMENTS:
+    print(rerank(QUERY, doc))

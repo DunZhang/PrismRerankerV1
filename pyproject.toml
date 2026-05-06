@@ -9,7 +9,7 @@ dependencies = [
     "torch",
     "torchvision",
     "torchaudio",
-    "sentence-transformers>=5.2.3",
+    "sentence-transformers>=5.4.0",
     "peft>=0.18.1",
     "voyageai>=0.3.7",
     "openpyxl>=3.1.5",
@@ -39,6 +39,8 @@ dependencies = [
     "faiss-cpu>=1.9.0",
     "cohere>=6.1.0",
     "zhconv>=1.4.3",
+    "llama-cpp-python[server]>=0.3.21",
+    "mistral-common>=1.10.0",
 ]
 
 [[tool.uv.index]]
