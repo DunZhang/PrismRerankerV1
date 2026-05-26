@@ -85,8 +85,4 @@ SFT loss：对 prompt 之后的 target 文本（`yes/no` + `<contribution>` + `<
 每条训练样本通过 `loss_type` 字段（`point-wise` / `sft` / `point-wise;sft`）决定参与哪些 loss 的计算。
 
 ## 当前训练效果
-我在Qwen3.5 4B模型上线进行了2W条数据的训练，经过测试发现模型的排序能力和输出文本能力均基本可看。
-备注：
-排序能力：即模型输出score的能力如何，这个可以用经典NDCG评估: /mnt/d/codes/PrismRerankerV1/evaluate_relevance_on_jina_bench
-
-文本能力：即模型输出contribution和evidence的能力如何，LLM as Judge: /mnt/d/codes/PrismRerankerV1/evaluate_relevance_contribution_evidence
+训练了从0.8B-9B之间的多个尺寸的模型，经过测试发现模型的排序能力和输出文本能力均基本可看。但是确实也没那么好
