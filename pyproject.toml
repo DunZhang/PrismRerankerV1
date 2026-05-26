@@ -41,6 +41,7 @@ dependencies = [
     "zhconv>=1.4.3",
     "llama-cpp-python[server]>=0.3.21",
     "mistral-common>=1.10.0",
+    "qwen-asr",
 ]
 
 [[tool.uv.index]]
